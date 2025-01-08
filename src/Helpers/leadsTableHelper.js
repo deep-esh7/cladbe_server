@@ -10,8 +10,9 @@ class TableHelper {
 
       // Create required extensions
       await client.query('CREATE EXTENSION IF NOT EXISTS "pg_trgm"');
+      await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
 
-      // Create leads table with VARCHAR for leadId instead of UUID
+      // Create leads table with modified constraints (removed unique email constraint)
       await client.query(`
           CREATE TABLE IF NOT EXISTS cladbe_leads (
             leadId VARCHAR(50) PRIMARY KEY, 
@@ -25,12 +26,11 @@ class TableHelper {
             createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             deletedAt TIMESTAMP WITH TIME ZONE,
-            CONSTRAINT unique_email_per_company UNIQUE (companyId, emailId),
             CONSTRAINT unique_mobile_per_company UNIQUE (companyId, mobileNumber)
           )
         `);
 
-      // Update audit log table to use VARCHAR for leadId
+      // Update audit log table
       await client.query(`
           CREATE TABLE IF NOT EXISTS lead_audit_logs (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -56,6 +56,8 @@ class TableHelper {
         "CREATE INDEX IF NOT EXISTS idx_leads_deleted_at ON cladbe_leads(deletedAt)",
         "CREATE INDEX IF NOT EXISTS idx_leads_name ON cladbe_leads(name)",
         "CREATE INDEX IF NOT EXISTS idx_leads_city ON cladbe_leads(city)",
+        // Composite index for company and email (non-unique)
+        "CREATE INDEX IF NOT EXISTS idx_leads_company_email ON cladbe_leads(companyId, emailId)",
         // Audit log indexes
         "CREATE INDEX IF NOT EXISTS idx_audit_lead_id ON lead_audit_logs(leadId)",
         "CREATE INDEX IF NOT EXISTS idx_audit_company_id ON lead_audit_logs(companyId)",
