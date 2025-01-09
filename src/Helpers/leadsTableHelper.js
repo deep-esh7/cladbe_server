@@ -12,7 +12,10 @@ class TableHelper {
       await client.query('CREATE EXTENSION IF NOT EXISTS "pg_trgm"');
       await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
 
-      // Create leads table with modified constraints (removed unique email constraint)
+      // Set timezone to Asia/Kolkata (IST)
+      await client.query("SET timezone = 'Asia/Kolkata'");
+
+      // Create leads table with IST timestamps
       await client.query(`
           CREATE TABLE IF NOT EXISTS cladbe_leads (
             leadId VARCHAR(50) PRIMARY KEY, 
@@ -23,14 +26,14 @@ class TableHelper {
             emailId VARCHAR(255) NOT NULL,
             name VARCHAR(255) NOT NULL,
             city VARCHAR(255) NOT NULL,
-            createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            createdAt TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'),
+            updatedAt TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'),
             deletedAt TIMESTAMP WITH TIME ZONE,
             CONSTRAINT unique_mobile_per_company UNIQUE (companyId, mobileNumber)
           )
         `);
 
-      // Update audit log table
+      // Update audit log table with IST timestamps
       await client.query(`
           CREATE TABLE IF NOT EXISTS lead_audit_logs (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -41,7 +44,7 @@ class TableHelper {
             previousData JSONB,
             newData JSONB,
             metadata JSONB,
-            actionAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            actionAt TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'),
             CONSTRAINT fk_lead FOREIGN KEY (leadId) REFERENCES cladbe_leads(leadId) ON DELETE CASCADE
           )
         `);
@@ -56,9 +59,7 @@ class TableHelper {
         "CREATE INDEX IF NOT EXISTS idx_leads_deleted_at ON cladbe_leads(deletedAt)",
         "CREATE INDEX IF NOT EXISTS idx_leads_name ON cladbe_leads(name)",
         "CREATE INDEX IF NOT EXISTS idx_leads_city ON cladbe_leads(city)",
-        // Composite index for company and email (non-unique)
         "CREATE INDEX IF NOT EXISTS idx_leads_company_email ON cladbe_leads(companyId, emailId)",
-        // Audit log indexes
         "CREATE INDEX IF NOT EXISTS idx_audit_lead_id ON lead_audit_logs(leadId)",
         "CREATE INDEX IF NOT EXISTS idx_audit_company_id ON lead_audit_logs(companyId)",
         "CREATE INDEX IF NOT EXISTS idx_audit_action ON lead_audit_logs(action)",
@@ -80,12 +81,12 @@ class TableHelper {
         await client.query(indexQuery);
       }
 
-      // Create trigger for updating updatedAt
+      // Create trigger for updating updatedAt with IST timestamp
       await client.query(`
           CREATE OR REPLACE FUNCTION update_updated_at_column()
           RETURNS TRIGGER AS $$
           BEGIN
-            NEW.updatedAt = CURRENT_TIMESTAMP;
+            NEW.updatedAt = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata');
             RETURN NEW;
           END;
           $$ language 'plpgsql';
@@ -100,7 +101,9 @@ class TableHelper {
         `);
 
       await client.query("COMMIT");
-      console.log("Leads table and related objects created successfully");
+      console.log(
+        "Leads table and related objects created successfully with IST timestamps"
+      );
     } catch (error) {
       await client.query("ROLLBACK");
       throw new Error(`Failed to create leads table: ${error.message}`);
@@ -113,6 +116,9 @@ class TableHelper {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+
+      // Set timezone to Asia/Kolkata (IST)
+      await client.query("SET timezone = 'Asia/Kolkata'");
 
       // Create extension for full text search
       await client.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
