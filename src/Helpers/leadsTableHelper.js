@@ -3,7 +3,7 @@ class TableHelper {
     this.pool = pool;
   }
 
-  async createLeadsTable() {
+  async createLeadsSearchTable() {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -24,7 +24,7 @@ class TableHelper {
 
       // Create leads table with IST timestamps
       await client.query(`
-          CREATE TABLE IF NOT EXISTS cladbe_leads (
+          CREATE TABLE IF NOT EXISTS cladbeSearchLeads (
             "leadId" VARCHAR(50) PRIMARY KEY, 
             "companyId" VARCHAR(255) NOT NULL,
             "ownerId" VARCHAR(255) NOT NULL,
@@ -52,7 +52,7 @@ class TableHelper {
             "newData" JSONB,
             "metadata" JSONB,
             "actionAt" TIMESTAMP WITH TIME ZONE DEFAULT "getCurrentIST"(),
-            CONSTRAINT "fkLead" FOREIGN KEY ("leadId") REFERENCES cladbe_leads("leadId") ON DELETE CASCADE
+            CONSTRAINT "fkLead" FOREIGN KEY ("leadId") REFERENCES cladbeSearchLeads("leadId") ON DELETE CASCADE
           )
         `);
 
@@ -89,24 +89,24 @@ class TableHelper {
 
       // Create trigger for automatic updatedAt
       await client.query(`
-        DROP TRIGGER IF EXISTS "updateLeadsUpdatedAt" ON cladbe_leads;
+        DROP TRIGGER IF EXISTS "updateLeadsUpdatedAt" ON cladbeSearchLeads;
         CREATE TRIGGER "updateLeadsUpdatedAt"
-        BEFORE UPDATE ON cladbe_leads
+        BEFORE UPDATE ON cladbeSearchLeads
         FOR EACH ROW
         EXECUTE FUNCTION "updateUpdatedAtColumn"();
       `);
 
       // Create basic indexes with camelCase names
       const basicIndexes = [
-        'CREATE INDEX IF NOT EXISTS "idxLeadsCompanyId" ON cladbe_leads("companyId")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsOwnerId" ON cladbe_leads("ownerId")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsCreatedAt" ON cladbe_leads("createdAt")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsEmailId" ON cladbe_leads("emailId")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsMobileNumber" ON cladbe_leads("mobileNumber")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsDeletedAt" ON cladbe_leads("deletedAt")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsName" ON cladbe_leads("name")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsCity" ON cladbe_leads("city")',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsCompanyEmail" ON cladbe_leads("companyId", "emailId")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsCompanyId" ON cladbeSearchLeads("companyId")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsOwnerId" ON cladbeSearchLeads("ownerId")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsCreatedAt" ON cladbeSearchLeads("createdAt")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsEmailId" ON cladbeSearchLeads("emailId")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsMobileNumber" ON cladbeSearchLeads("mobileNumber")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsDeletedAt" ON cladbeSearchLeads("deletedAt")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsName" ON cladbeSearchLeads("name")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsCity" ON cladbeSearchLeads("city")',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsCompanyEmail" ON cladbeSearchLeads("companyId", "emailId")',
         'CREATE INDEX IF NOT EXISTS "idxAuditLeadId" ON lead_audit_logs("leadId")',
         'CREATE INDEX IF NOT EXISTS "idxAuditCompanyId" ON lead_audit_logs("companyId")',
         'CREATE INDEX IF NOT EXISTS "idxAuditAction" ON lead_audit_logs("action")',
@@ -119,9 +119,9 @@ class TableHelper {
 
       // Create trigram indexes with camelCase names
       const trigramIndexes = [
-        'CREATE INDEX IF NOT EXISTS "idxLeadsNameTrgm" ON cladbe_leads USING gin ("name" gin_trgm_ops)',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsCityTrgm" ON cladbe_leads USING gin ("city" gin_trgm_ops)',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsEmailTrgm" ON cladbe_leads USING gin ("emailId" gin_trgm_ops)',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsNameTrgm" ON cladbeSearchLeads USING gin ("name" gin_trgm_ops)',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsCityTrgm" ON cladbeSearchLeads USING gin ("city" gin_trgm_ops)',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsEmailTrgm" ON cladbeSearchLeads USING gin ("emailId" gin_trgm_ops)',
       ];
 
       for (const indexQuery of trigramIndexes) {
@@ -163,7 +163,7 @@ class TableHelper {
             "convertToIST"(l."createdAt") as "createdAt",
             "convertToIST"(l."updatedAt") as "updatedAt",
             "convertToIST"(l."deletedAt") as "deletedAt"
-          FROM cladbe_leads l
+          FROM cladbeSearchLeads l
           WHERE l."companyId" = company_id
             AND (
               l."name" ILIKE '%' || search_query || '%'
@@ -201,9 +201,9 @@ class TableHelper {
 
       // Create full text search indexes with camelCase names
       const searchIndexes = [
-        'CREATE INDEX IF NOT EXISTS "idxLeadsNameSearch" ON cladbe_leads USING gin (to_tsvector(\'english\', "name"))',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsEmailSearch" ON cladbe_leads USING gin (to_tsvector(\'english\', "emailId"))',
-        'CREATE INDEX IF NOT EXISTS "idxLeadsCitySearch" ON cladbe_leads USING gin (to_tsvector(\'english\', "city"))',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsNameSearch" ON cladbeSearchLeads USING gin (to_tsvector(\'english\', "name"))',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsEmailSearch" ON cladbeSearchLeads USING gin (to_tsvector(\'english\', "emailId"))',
+        'CREATE INDEX IF NOT EXISTS "idxLeadsCitySearch" ON cladbeSearchLeads USING gin (to_tsvector(\'english\', "city"))',
       ];
 
       for (const indexQuery of searchIndexes) {
@@ -220,7 +220,7 @@ class TableHelper {
     }
   }
 
-  async dropLeadsTable() {
+  async dropLeadsSearchTable() {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -240,10 +240,12 @@ class TableHelper {
 
       // Drop tables
       await client.query("DROP TABLE IF EXISTS lead_audit_logs CASCADE");
-      await client.query("DROP TABLE IF EXISTS cladbe_leads CASCADE");
+      await client.query("DROP TABLE IF EXISTS cladbeSearchLeads CASCADE");
 
       await client.query("COMMIT");
-      console.log("Leads table and related objects dropped successfully");
+      console.log(
+        "Leads  Search table and related objects dropped successfully"
+      );
     } catch (error) {
       await client.query("ROLLBACK");
       throw new Error(`Failed to drop leads table: ${error.message}`);
@@ -257,7 +259,7 @@ class TableHelper {
     try {
       await client.query("BEGIN");
       await client.query("TRUNCATE TABLE lead_audit_logs CASCADE");
-      await client.query("TRUNCATE TABLE cladbe_leads CASCADE");
+      await client.query("TRUNCATE TABLE cladbeSearchLeads CASCADE");
       await client.query("COMMIT");
       console.log("Leads table and related objects truncated successfully");
     } catch (error) {

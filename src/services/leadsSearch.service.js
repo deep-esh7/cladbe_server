@@ -11,11 +11,11 @@ class LeadSearchService {
   async checkDuplicateMobile(mobileNumber, excludeLeadId = null) {
     const query = excludeLeadId
       ? {
-          text: 'SELECT "leadId" FROM cladbe_leads WHERE "mobileNumber" = $1 AND "leadId" != $2 AND "deletedAt" IS NULL',
+          text: 'SELECT "leadId" FROM cladbeSearchLeads WHERE "mobileNumber" = $1 AND "leadId" != $2 AND "deletedAt" IS NULL',
           values: [mobileNumber, excludeLeadId],
         }
       : {
-          text: 'SELECT "leadId" FROM cladbe_leads WHERE "mobileNumber" = $1 AND "deletedAt" IS NULL',
+          text: 'SELECT "leadId" FROM cladbeSearchLeads WHERE "mobileNumber" = $1 AND "deletedAt" IS NULL',
           values: [mobileNumber],
         };
 
@@ -27,7 +27,7 @@ class LeadSearchService {
   async searchByEmail(email, companyId) {
     const query = {
       text: `
-        SELECT * FROM cladbe_leads 
+        SELECT * FROM cladbeSearchLeads 
         WHERE "companyId" = $1 
         AND "emailId" ILIKE $2
         AND "deletedAt" IS NULL
@@ -59,7 +59,7 @@ class LeadSearchService {
       const countQuery = {
         text: `
           SELECT COUNT(*) 
-          FROM cladbe_leads 
+          FROM cladbeSearchLeads 
           WHERE "companyId" = $1 
           AND LOWER("name") LIKE LOWER($2)
           AND "deletedAt" IS NULL
@@ -79,7 +79,7 @@ class LeadSearchService {
 
       const query = {
         text: `
-          SELECT * FROM cladbe_leads 
+          SELECT * FROM cladbeSearchLeads 
           WHERE "companyId" = $1 
           AND LOWER("name") LIKE LOWER($2)
           AND "deletedAt" IS NULL
@@ -113,7 +113,7 @@ class LeadSearchService {
     try {
       const { rows } = await db.query(
         `
-        SELECT * FROM cladbe_leads 
+        SELECT * FROM cladbeSearchLeads 
         WHERE "companyId" = $1 
         AND "mobileNumber" LIKE $2
         AND "deletedAt" IS NULL
@@ -158,7 +158,7 @@ class LeadSearchService {
       if (agentId) {
         countQuery = `
           SELECT COUNT(*) as total
-          FROM cladbe_leads
+          FROM cladbeSearchLeads
           WHERE "companyId" = $1
           AND "deletedAt" IS NULL
           AND (
@@ -174,7 +174,7 @@ class LeadSearchService {
         `;
 
         query = `
-          SELECT * FROM cladbe_leads
+          SELECT * FROM cladbeSearchLeads
           WHERE "companyId" = $1
           AND "deletedAt" IS NULL
           AND (
@@ -195,7 +195,7 @@ class LeadSearchService {
       } else {
         countQuery = `
           SELECT COUNT(*) as total
-          FROM cladbe_leads
+          FROM cladbeSearchLeads
           WHERE "companyId" = $1
           AND "deletedAt" IS NULL
           AND (
@@ -207,7 +207,7 @@ class LeadSearchService {
         `;
 
         query = `
-          SELECT * FROM cladbe_leads
+          SELECT * FROM cladbeSearchLeads
           WHERE "companyId" = $1
           AND "deletedAt" IS NULL
           AND (
@@ -276,7 +276,7 @@ class LeadSearchService {
 
       const result = await client.query(
         `
-        INSERT INTO cladbe_leads (
+        INSERT INTO cladbeSearchLeads (
           "leadId", "companyId", "ownerId", "coOwnerIds",
           "mobileNumber", "emailId", "name", "city",
           "createdAt", "updatedAt"
@@ -323,7 +323,7 @@ class LeadSearchService {
       await client.query("BEGIN");
 
       const existingLead = await client.query(
-        `SELECT * FROM cladbe_leads WHERE "leadId" = $1 AND "companyId" = $2 AND "deletedAt" IS NULL`,
+        `SELECT * FROM cladbeSearchLeads WHERE "leadId" = $1 AND "companyId" = $2 AND "deletedAt" IS NULL`,
         [leadId, companyId]
       );
 
@@ -365,7 +365,7 @@ class LeadSearchService {
 
       const result = await client.query(
         `
-        UPDATE cladbe_leads
+        UPDATE cladbeSearchLeads
         SET ${setValues.join(
           ", "
         )}, "updatedAt" = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
@@ -396,7 +396,7 @@ class LeadSearchService {
 
       const result = await client.query(
         `
-        UPDATE cladbe_leads
+        UPDATE cladbeSearchLeads
         SET "deletedAt" = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'),
             "updatedAt" = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
         WHERE "leadId" = $1 
@@ -424,7 +424,6 @@ class LeadSearchService {
     }
   }
 
-  // Admin Methods are similarly updated with quoted column names...
   async getLeadsByAgent(params) {
     const {
       agentId,
@@ -445,7 +444,7 @@ class LeadSearchService {
               WHEN "coOwnerIds" @> ARRAY[$1]::text[] THEN 'coOwner'
               ELSE 'none'
             END as role
-          FROM cladbe_leads
+          FROM cladbeSearchLeads
           WHERE "companyId" = $2
           AND "deletedAt" IS NULL
           AND (
@@ -470,7 +469,7 @@ class LeadSearchService {
           COUNT(*) OVER() as total_count
         FROM agent_leads
         ORDER BY "${orderBy}" ${orderDir}
-        LIMIT $${paramCount} OFFSET $${paramCount + 1}
+        LIMIT ${paramCount} OFFSET ${paramCount + 1}
       `;
 
       // Continuing the getLeadsByAgent method...
@@ -509,7 +508,7 @@ class LeadSearchService {
       await client.query("BEGIN");
 
       const existingLead = await client.query(
-        'SELECT * FROM cladbe_leads WHERE "leadId" = $1',
+        'SELECT * FROM cladbeSearchLeads WHERE "leadId" = $1',
         [leadId]
       );
 
@@ -536,7 +535,7 @@ class LeadSearchService {
 
       Object.entries(updateData).forEach(([key, value]) => {
         if (value !== undefined && !["leadId", "createdAt"].includes(key)) {
-          setValues.push(`"${key}" = $${paramCount}`);
+          setValues.push(`"${key}" = ${paramCount}`);
           values.push(value);
           paramCount++;
         }
@@ -544,7 +543,7 @@ class LeadSearchService {
 
       const result = await client.query(
         `
-      UPDATE cladbe_leads
+      UPDATE cladbeSearchLeads
       SET ${setValues.join(", ")}, 
           "updatedAt" = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'),
           "lastModifiedBy" = 'admin'
@@ -590,7 +589,7 @@ class LeadSearchService {
       await client.query("BEGIN");
 
       const existingLead = await client.query(
-        'SELECT * FROM cladbe_leads WHERE "leadId" = $1',
+        'SELECT * FROM cladbeSearchLeads WHERE "leadId" = $1',
         [leadId]
       );
 
@@ -600,7 +599,7 @@ class LeadSearchService {
 
       const result = await client.query(
         `
-      DELETE FROM cladbe_leads
+      DELETE FROM cladbeSearchLeads
       WHERE "leadId" = $1
       RETURNING *
       `,
@@ -642,7 +641,7 @@ class LeadSearchService {
       const query = {
         text: `
         SELECT *, COUNT(*) OVER() as total_count 
-        FROM cladbe_leads
+        FROM cladbeSearchLeads
         ORDER BY "${orderBy}" ${orderDir}
         LIMIT $1 OFFSET $2
       `,
@@ -669,7 +668,7 @@ class LeadSearchService {
   async adminGetLeadById(leadId) {
     try {
       const { rows } = await db.query(
-        'SELECT * FROM cladbe_leads WHERE "leadId" = $1',
+        'SELECT * FROM cladbeSearchLeads WHERE "leadId" = $1',
         [leadId]
       );
 

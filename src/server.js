@@ -123,8 +123,9 @@ async function initializeDatabase() {
 
     // Create leads table and required indexes
     console.log("Setting up tables and indexes...");
-    await tableHelper.createLeadsTable();
-    // await tableHelper.dropLeadsTable();
+    await tableHelper.createLeadsSearchTable();
+    // await tableHelper.dropLeadsSearchTable();
+
     console.log("Tables and indexes created successfully");
 
     console.log("Database initialization completed successfully");

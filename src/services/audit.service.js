@@ -177,7 +177,7 @@ class AuditService {
               'createdBy', ownerId,
               'initialData', to_jsonb(l.*)
             ) as event_data
-          FROM cladbe_leads l
+          FROM cladbeSearchLeads l
           WHERE leadId = $1
 
           UNION ALL
