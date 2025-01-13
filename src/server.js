@@ -5,8 +5,14 @@ const { DatabaseHelper } = require("../src/Helpers/databaseHelper.js");
 const { TableHelper } = require("./Helpers/leadsTableHelper.js");
 const leadsRoutes = require("./routes/leadsSearch.routes.js");
 const db = require("../src/db/connection.js");
+const SqlQueryExecutor = require("../Helpers/SqlQueryExecutor");
+const ClientSqlHelper = require("../Helpers/ClientSqlHelper");
 
 const app = express();
+
+// Initialize SQL components
+const sqlExecutor = new SqlQueryExecutor(db.pool);
+const clientSqlHelper = new ClientSqlHelper(sqlExecutor);
 
 // CORS configuration
 const corsOptions = {
@@ -42,6 +48,95 @@ app.get("/health", (req, res) => {
 
 // Mount routes with /api prefix
 app.use("/api/leads", leadsRoutes);
+
+// SQL Routes
+app.post("/api/sql/query", async (req, res) => {
+  try {
+    const { query, params } = req.body;
+    const result = await clientSqlHelper.query(query, params);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/sql/execute", async (req, res) => {
+  try {
+    const { query, params } = req.body;
+    const result = await clientSqlHelper.execute(query, params);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/sql/transaction", async (req, res) => {
+  try {
+    const { queries } = req.body;
+    const result = await clientSqlHelper.executeTransaction(queries);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Table Operations
+app.post("/api/sql/table/create", async (req, res) => {
+  try {
+    const { tableName, columns } = req.body;
+    const result = await clientSqlHelper.createTable(tableName, columns);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete("/api/sql/table/:tableName", async (req, res) => {
+  try {
+    const { tableName } = req.params;
+    await clientSqlHelper.dropTable(tableName);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/sql/table/:tableName/columns", async (req, res) => {
+  try {
+    const { tableName } = req.params;
+    const columns = await clientSqlHelper.getTableColumns(tableName);
+    res.json({ success: true, data: columns });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Column Operations
+app.post("/api/sql/table/:tableName/column", async (req, res) => {
+  try {
+    const { tableName } = req.params;
+    const { columnName, columnType, constraints } = req.body;
+    await clientSqlHelper.addColumn(
+      tableName,
+      columnName,
+      columnType,
+      constraints
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete("/api/sql/table/:tableName/column/:columnName", async (req, res) => {
+  try {
+    const { tableName, columnName } = req.params;
+    await clientSqlHelper.dropColumn(tableName, columnName);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // 404 handler
 app.use((req, res, next) => {
@@ -91,13 +186,11 @@ app.use((err, req, res, next) => {
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
   console.error("Stack:", error.stack);
-  // Perform graceful shutdown
   gracefulShutdown();
 });
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  // Perform graceful shutdown
   gracefulShutdown();
 });
 
@@ -124,10 +217,8 @@ async function initializeDatabase() {
     // Create leads table and required indexes
     console.log("Setting up tables and indexes...");
     await tableHelper.createLeadsSearchTable();
-    // await tableHelper.dropLeadsSearchTable();
 
     console.log("Tables and indexes created successfully");
-
     console.log("Database initialization completed successfully");
     return true;
   } catch (error) {
@@ -180,7 +271,7 @@ async function startServer() {
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
       console.log(
-        `API base URL: https://cladbeserver-production.up.railway.app:${PORT}/api/leads`
+        `API base URL: https://cladbeserver-production.up.railway.app:${PORT}`
       );
     });
 
