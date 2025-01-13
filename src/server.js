@@ -5,8 +5,8 @@ const { DatabaseHelper } = require("../src/Helpers/databaseHelper.js");
 const { TableHelper } = require("./Helpers/leadsTableHelper.js");
 const leadsRoutes = require("./routes/leadsSearch.routes.js");
 const db = require("../src/db/connection.js");
-const SqlQueryExecutor = require("../Helpers/SqlQueryExecutor");
-const ClientSqlHelper = require("../Helpers/ClientSqlHelper");
+const SqlQueryExecutor = require("./Helpers/sqlQueryExecutor");
+const ClientSqlHelper = require("./Helpers/clientSqlHelper");
 
 const app = express();
 
