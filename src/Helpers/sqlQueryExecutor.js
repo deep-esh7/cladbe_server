@@ -17,9 +17,74 @@ class SqlQueryExecutor {
     this.retryDelay = 1000; // 1 second delay for retries
     this.maxRetries = 3; // Maximum number of retries
 
-    // Monitor pool events
     this.pool.on("error", (err) => {
       console.error("Unexpected error on idle client", err);
+    });
+  }
+
+  validateQueryAndParams(query, params = []) {
+    // Count number of parameter placeholders ($1, $2, etc.)
+    const paramMatches = query.match(/\$\d+/g) || [];
+    const paramCount = paramMatches.length;
+
+    // Verify parameter count matches
+    if (paramCount !== params.length) {
+      throw new DatabaseError(
+        `Parameter count mismatch. Query expects ${paramCount} parameters but got ${params.length}`,
+        "PARAM_COUNT_MISMATCH",
+        query,
+        params
+      );
+    }
+
+    // Verify parameter numbering is sequential and starts from 1
+    const paramNumbers = paramMatches
+      .map((p) => parseInt(p.substring(1)))
+      .sort((a, b) => a - b);
+
+    for (let i = 0; i < paramNumbers.length; i++) {
+      if (paramNumbers[i] !== i + 1) {
+        throw new DatabaseError(
+          `Invalid parameter numbering. Parameters must be sequential starting from $1`,
+          "INVALID_PARAM_NUMBERING",
+          query,
+          params
+        );
+      }
+    }
+  }
+
+  sanitizeParams(params) {
+    return params.map((param) => {
+      if (param === null || param === undefined) return null;
+      if (typeof param === "string") {
+        // Basic SQL injection prevention
+        return param.replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, (char) => {
+          switch (char) {
+            case "\0":
+              return "\\0";
+            case "\x08":
+              return "\\b";
+            case "\x09":
+              return "\\t";
+            case "\x1a":
+              return "\\z";
+            case "\n":
+              return "\\n";
+            case "\r":
+              return "\\r";
+            case '"':
+            case "'":
+            case "\\":
+            case "%":
+              return "\\" + char;
+          }
+        });
+      }
+      if (param instanceof Date) {
+        return param.toISOString();
+      }
+      return param;
     });
   }
 
@@ -32,7 +97,11 @@ class SqlQueryExecutor {
         timestamp: new Date().toISOString(),
       });
 
-      const result = await client.query(query, params);
+      // Validate and sanitize parameters
+      this.validateQueryAndParams(query, params);
+      const sanitizedParams = this.sanitizeParams(params);
+
+      const result = await client.query(query, sanitizedParams);
 
       console.log("Query successful:", {
         rowCount: result.rowCount,
@@ -42,7 +111,7 @@ class SqlQueryExecutor {
       return result.rows;
     } catch (error) {
       if (error.code === "42P01" && retryCount < this.maxRetries) {
-        // relation does not exist
+        // Table does not exist - retry case
         console.log(
           `Table does not exist, attempt ${retryCount + 1} of ${
             this.maxRetries
@@ -73,7 +142,7 @@ class SqlQueryExecutor {
       await client.query("BEGIN");
 
       const results = [];
-      for (const { query, params } of queries) {
+      for (const { query, params = [] } of queries) {
         console.log("Executing transaction query:", {
           query,
           params,
@@ -81,7 +150,11 @@ class SqlQueryExecutor {
         });
 
         try {
-          const result = await client.query(query, params);
+          // Validate and sanitize each query in the transaction
+          this.validateQueryAndParams(query, params);
+          const sanitizedParams = this.sanitizeParams(params);
+
+          const result = await client.query(query, sanitizedParams);
           results.push(result.rows);
         } catch (error) {
           if (error.code === "42P01" && retryCount < this.maxRetries) {
@@ -131,6 +204,10 @@ class SqlQueryExecutor {
         timestamp: new Date().toISOString(),
       });
 
+      // Validate parameters
+      this.validateQueryAndParams(query, params);
+      const sanitizedParams = this.sanitizeParams(params);
+
       // First, deallocate if exists to avoid conflicts
       try {
         await client.query(`DEALLOCATE IF EXISTS "${name}"`);
@@ -142,7 +219,10 @@ class SqlQueryExecutor {
       await client.query(`PREPARE "${name}" AS ${query}`);
 
       // Execute the prepared statement
-      const result = await client.query(`EXECUTE "${name}"($1)`, params);
+      const result = await client.query(
+        `EXECUTE "${name}"($1)`,
+        sanitizedParams
+      );
 
       // Deallocate to clean up
       await client.query(`DEALLOCATE "${name}"`);
@@ -201,7 +281,8 @@ class SqlQueryExecutor {
     const query = `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
-        WHERE table_name = $1
+        WHERE table_schema = 'public' 
+        AND table_name = $1
       );
     `;
     const result = await this.executeQuery(query, [tableName]);
@@ -210,8 +291,16 @@ class SqlQueryExecutor {
 
   async getTableColumns(tableName) {
     const query = `
-      SELECT column_name, data_type, is_nullable, 
-             column_default, character_maximum_length
+      SELECT 
+        column_name,
+        data_type,
+        is_nullable,
+        column_default,
+        character_maximum_length,
+        numeric_precision,
+        numeric_scale,
+        udt_name,
+        is_identity
       FROM information_schema.columns
       WHERE table_name = $1
       ORDER BY ordinal_position;
@@ -223,7 +312,38 @@ class SqlQueryExecutor {
     const client = await this.pool.connect();
     try {
       // Need to run outside a transaction
-      await client.query(`VACUUM ${analyze ? "ANALYZE" : ""} ${tableName}`);
+      const query = `VACUUM ${analyze ? "ANALYZE" : ""} ${tableName}`;
+      console.log(`Executing VACUUM on ${tableName}:`, query);
+      await client.query(query);
+      console.log(`VACUUM completed on ${tableName}`);
+    } catch (error) {
+      console.error(`VACUUM failed on ${tableName}:`, error);
+      throw new DatabaseError(
+        error.message,
+        error.code,
+        `VACUUM ${tableName}`,
+        null
+      );
+    } finally {
+      client.release();
+    }
+  }
+
+  async analyzeTable(tableName) {
+    const client = await this.pool.connect();
+    try {
+      const query = `ANALYZE ${tableName}`;
+      console.log(`Analyzing table ${tableName}`);
+      await client.query(query);
+      console.log(`Analysis completed on ${tableName}`);
+    } catch (error) {
+      console.error(`Analysis failed on ${tableName}:`, error);
+      throw new DatabaseError(
+        error.message,
+        error.code,
+        `ANALYZE ${tableName}`,
+        null
+      );
     } finally {
       client.release();
     }
