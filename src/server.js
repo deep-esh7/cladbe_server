@@ -16,18 +16,18 @@ const clientSqlHelper = new ClientSqlHelper(sqlExecutor);
 
 // CORS configuration
 const corsOptions = {
-  origin: "*", // In production, replace with your specific origins
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Accept", "Authorization"],
   credentials: true,
-  maxAge: 86400, // 24 hours
+  maxAge: 86400,
 };
 
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-app.use(morgan("dev")); // Logging
+app.use(morgan("dev"));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -49,54 +49,56 @@ app.get("/health", (req, res) => {
 // Mount routes with /api prefix
 app.use("/api/leads", leadsRoutes);
 
-// SQL Routes
+// SQL Query Routes
 app.post("/api/sql/query", async (req, res) => {
   try {
-    const { query, params } = req.body;
-    const result = await clientSqlHelper.query(query, params);
+    console.log("Executing SQL query:", req.body);
+    const { query, parameters } = req.body;
+    const result = await clientSqlHelper.executeRead(query, parameters);
     res.json({ success: true, data: result });
   } catch (error) {
+    console.error("Query execution failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 app.post("/api/sql/execute", async (req, res) => {
   try {
-    const { query, params } = req.body;
-    const result = await clientSqlHelper.execute(query, params);
+    console.log("Executing SQL command:", req.body);
+    const { query, parameters } = req.body;
+    const result = await clientSqlHelper.executeWrite(query, parameters);
     res.json({ success: true, data: result });
   } catch (error) {
+    console.error("Command execution failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-app.post("/api/sql/transaction", async (req, res) => {
-  try {
-    const { queries } = req.body;
-    const result = await clientSqlHelper.executeTransaction(queries);
-    res.json({ success: true, data: result });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Table Operations
-app.post("/api/sql/table/create", async (req, res) => {
-  try {
-    const { tableName, columns } = req.body;
-    const result = await clientSqlHelper.createTable(tableName, columns);
-    res.json({ success: true, data: result });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.delete("/api/sql/table/:tableName", async (req, res) => {
+// Table Existence Check - NEW ENDPOINT
+app.get("/api/sql/table/:tableName/exists", async (req, res) => {
   try {
     const { tableName } = req.params;
-    await clientSqlHelper.dropTable(tableName);
-    res.json({ success: true });
+    console.log(`Checking if table exists: ${tableName}`);
+    const exists = await clientSqlHelper.tableExists(tableName);
+    res.json({ success: true, exists });
   } catch (error) {
+    console.error("Table exists check failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Table Operations Routes
+app.post("/api/sql/table/create", async (req, res) => {
+  try {
+    console.log("Creating table:", req.body);
+    const { tableName, query } = req.body;
+    await clientSqlHelper.executeWrite(query);
+    res.json({
+      success: true,
+      message: `Table ${tableName} created successfully`,
+    });
+  } catch (error) {
+    console.error("Table creation failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -104,9 +106,86 @@ app.delete("/api/sql/table/:tableName", async (req, res) => {
 app.get("/api/sql/table/:tableName/columns", async (req, res) => {
   try {
     const { tableName } = req.params;
+    console.log(`Getting columns for table: ${tableName}`);
     const columns = await clientSqlHelper.getTableColumns(tableName);
-    res.json({ success: true, data: columns });
+    res.json({
+      success: true,
+      columns: columns.map((col) => ({
+        name: col.column_name,
+        dataType: col.data_type,
+        isNullable: col.is_nullable === "YES",
+        defaultValue: col.column_default,
+        length: col.length,
+        precision: col.precision,
+        scale: col.scale,
+      })),
+    });
   } catch (error) {
+    console.error("Get columns failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete("/api/sql/table/:tableName", async (req, res) => {
+  try {
+    const { tableName } = req.params;
+    const { cascade } = req.body;
+    console.log(
+      `Dropping table ${tableName} ${cascade ? "with" : "without"} cascade`
+    );
+    await clientSqlHelper.dropTable(tableName);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Table drop failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Transaction Routes
+app.post("/api/sql/transaction-begin", async (req, res) => {
+  try {
+    console.log("Beginning transaction");
+    await clientSqlHelper.executeWrite("BEGIN");
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Transaction begin failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/sql/transaction-commit", async (req, res) => {
+  try {
+    console.log("Committing transaction");
+    await clientSqlHelper.executeWrite("COMMIT");
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Transaction commit failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/sql/transaction-rollback", async (req, res) => {
+  try {
+    console.log("Rolling back transaction");
+    await clientSqlHelper.executeWrite("ROLLBACK");
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Transaction rollback failed:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Batch Operations
+app.post("/api/sql/batch", async (req, res) => {
+  try {
+    const { queries } = req.body;
+    console.log("Executing batch queries:", queries);
+    const results = await clientSqlHelper.executeTransaction(
+      queries.map((query) => ({ query, params: [] }))
+    );
+    res.json({ success: true, data: results });
+  } catch (error) {
+    console.error("Batch operation failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -116,6 +195,12 @@ app.post("/api/sql/table/:tableName/column", async (req, res) => {
   try {
     const { tableName } = req.params;
     const { columnName, columnType, constraints } = req.body;
+    console.log("Adding column:", {
+      tableName,
+      columnName,
+      columnType,
+      constraints,
+    });
     await clientSqlHelper.addColumn(
       tableName,
       columnName,
@@ -124,6 +209,7 @@ app.post("/api/sql/table/:tableName/column", async (req, res) => {
     );
     res.json({ success: true });
   } catch (error) {
+    console.error("Add column failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -131,15 +217,18 @@ app.post("/api/sql/table/:tableName/column", async (req, res) => {
 app.delete("/api/sql/table/:tableName/column/:columnName", async (req, res) => {
   try {
     const { tableName, columnName } = req.params;
+    console.log("Dropping column:", { tableName, columnName });
     await clientSqlHelper.dropColumn(tableName, columnName);
     res.json({ success: true });
   } catch (error) {
+    console.error("Drop column failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // 404 handler
-app.use((req, res, next) => {
+app.use((req, res) => {
+  console.log(`404 - Route not found: ${req.method} ${req.url}`);
   res.status(404).json({
     success: false,
     error: "Not Found",
@@ -152,10 +241,8 @@ app.use((err, req, res, next) => {
   console.error("Error occurred:", err);
   console.error("Stack trace:", err.stack);
 
-  // Determine if error is operational or programming
   const isOperationalError = err.isOperational || false;
 
-  // Handle different types of errors
   if (err.name === "ValidationError") {
     return res.status(400).json({
       success: false,
@@ -173,7 +260,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Default error response
   res.status(err.status || 500).json({
     success: false,
     error: isOperationalError ? err.message : "Internal Server Error",
@@ -199,12 +285,9 @@ const PORT = process.env.PORT || 3000;
 async function initializeDatabase() {
   try {
     console.log("Starting database initialization...");
-
-    // Initialize database helpers
     const dbHelper = new DatabaseHelper(db.pool);
     const tableHelper = new TableHelper(db.pool);
 
-    // Check if database exists, if not create it
     const dbExists = await dbHelper.checkDatabaseExists("cladbe");
     if (!dbExists) {
       console.log("Creating database 'cladbe'...");
@@ -214,11 +297,9 @@ async function initializeDatabase() {
       console.log("Database 'cladbe' already exists");
     }
 
-    // Create leads table and required indexes
     console.log("Setting up tables and indexes...");
     await tableHelper.createLeadsSearchTable();
 
-    console.log("Tables and indexes created successfully");
     console.log("Database initialization completed successfully");
     return true;
   } catch (error) {
@@ -233,7 +314,6 @@ function gracefulShutdown(signal) {
     `${signal || "Shutdown"} signal received. Starting graceful shutdown...`
   );
 
-  // Close database connection
   if (db.pool) {
     console.log("Closing database connections...");
     db.pool.end(() => {
@@ -244,7 +324,6 @@ function gracefulShutdown(signal) {
     process.exit(0);
   }
 
-  // If shutdown hasn't completed in 10 seconds, force exit
   setTimeout(() => {
     console.error(
       "Could not close connections in time, forcefully shutting down"
@@ -253,11 +332,9 @@ function gracefulShutdown(signal) {
   }, 10000);
 }
 
-// Graceful shutdown handlers
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-// Start server
 let server;
 async function startServer() {
   try {
@@ -271,11 +348,10 @@ async function startServer() {
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
       console.log(
-        `API base URL: https://cladbeserver-production.up.railway.app:${PORT}`
+        `API base URL: https://cladbeserver-production.up.railway.app`
       );
     });
 
-    // Add error handler for server
     server.on("error", (error) => {
       console.error("Server error:", error);
       if (error.code === "EADDRINUSE") {
@@ -291,4 +367,4 @@ async function startServer() {
 
 startServer();
 
-module.exports = { app, server }; // Export for testing purposes
+module.exports = { app, server };
