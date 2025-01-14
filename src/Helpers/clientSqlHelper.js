@@ -1,4 +1,3 @@
-// src/Helpers/clientSqlHelper.js
 class ClientSqlHelper {
   constructor(sqlExecutor) {
     this.sqlExecutor = sqlExecutor;
@@ -47,7 +46,7 @@ class ClientSqlHelper {
         convertedQuery,
         params
       );
-      console.log("Write operation successful:", result);
+      console.log("Write operation successful. Result:", result);
       return result;
     } catch (error) {
       console.error("Write operation failed:", error);
@@ -154,6 +153,48 @@ class ClientSqlHelper {
       console.log("Table dropped successfully");
     } catch (error) {
       console.error("Drop table failed:", error);
+      throw error;
+    }
+  }
+
+  // Method to verify table structure
+  async verifyTableStructure(tableName) {
+    try {
+      const tableInfo = await this.executeRead(
+        `
+        SELECT 
+          table_schema,
+          table_name,
+          table_type
+        FROM information_schema.tables 
+        WHERE table_name = $1
+      `,
+        [tableName]
+      );
+
+      const columns = await this.getTableColumns(tableName);
+
+      const constraints = await this.executeRead(
+        `
+        SELECT 
+          tc.constraint_name,
+          tc.constraint_type,
+          kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.table_name = $1
+      `,
+        [tableName]
+      );
+
+      return {
+        tableInfo: tableInfo[0],
+        columns,
+        constraints,
+      };
+    } catch (error) {
+      console.error("Table verification failed:", error);
       throw error;
     }
   }

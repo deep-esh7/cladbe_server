@@ -217,6 +217,7 @@ app.post("/api/sql/query", async (req, res) => {
 });
 
 // Enhanced execute route with transaction handling
+// Enhanced execute route without xact_rows_modified
 app.post("/api/sql/execute", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
@@ -224,30 +225,28 @@ app.post("/api/sql/execute", async (req, res) => {
     debug("Executing SQL command:", req.body);
     const { query, parameters } = req.body;
     const startTime = Date.now();
-
+    
     // Begin transaction
     await clientSqlHelper.executeWrite("BEGIN");
-
+    
     try {
-      // Execute the main query
-      const result = await clientSqlHelper.executeWrite(query, parameters);
-
-      // Get affected rows
-      const impactCheck = await clientSqlHelper.executeRead(
-        "SELECT xact_rows_modified() as affected_rows"
-      );
-
+      // Execute the main query and capture the result directly
+      const result = await db.pool.query(query, parameters);
+      
+      // Get affected rows from the result object
+      const affectedRows = result.rowCount || 0;
+      
       // Commit transaction
       await clientSqlHelper.executeWrite("COMMIT");
-
+      
       const duration = Date.now() - startTime;
-      debug(`Command executed in ${duration}ms`);
-
-      res.json({
-        success: true,
-        data: result,
-        affected_rows: impactCheck[0]?.affected_rows || 0,
-        execution_time: duration,
+      debug(`Command executed in ${duration}ms, affected rows: ${affectedRows}`);
+      
+      res.json({ 
+        success: true, 
+        data: result.rows,
+        affected_rows: affectedRows,
+        execution_time: duration
       });
     } catch (error) {
       await clientSqlHelper.executeWrite("ROLLBACK");
@@ -255,16 +254,14 @@ app.post("/api/sql/execute", async (req, res) => {
     }
   } catch (error) {
     console.error("Command execution failed:", error);
-    res.status(500).json({
-      success: false,
+    res.status(500).json({ 
+      success: false, 
       error: error.message,
-      details: DEBUG
-        ? {
-            code: error.code,
-            query: error.query,
-            params: error.params,
-          }
-        : undefined,
+      details: DEBUG ? {
+        code: error.code,
+        query: error.query,
+        params: error.params
+      } : undefined
     });
   }
 });
