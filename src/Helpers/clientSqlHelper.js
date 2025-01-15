@@ -65,6 +65,87 @@ class ClientSqlHelper {
     }
   }
 
+  _buildQueryWithModifiers({
+    tableName,
+    columns,
+    filters,
+    groupBy,
+    having,
+    orderBy,
+    limit,
+    offset,
+    modifiers,
+  }) {
+    this.log("Building query with modifiers");
+    const buffer = [];
+
+    // Build SELECT clause
+    buffer.push("SELECT");
+    if (modifiers?.some((m) => m.modifiers?.some((mod) => mod.distinct))) {
+      buffer.push("DISTINCT");
+    }
+    buffer.push(columns?.join(", ") || "*");
+
+    // FROM clause
+    buffer.push(`FROM ${this.sanitizeTableName(tableName)}`);
+
+    // WHERE clause
+    if (filters?.length > 0) {
+      const filterConditions = filters
+        .map((f) => `(${this.convertQueryParameters(f.toSQL())})`)
+        .join(" AND ");
+      buffer.push(`WHERE ${filterConditions}`);
+    }
+
+    // GROUP BY clause
+    if (groupBy?.length > 0) {
+      buffer.push(`GROUP BY ${groupBy.join(", ")}`);
+    }
+
+    // HAVING clause
+    if (having?.length > 0) {
+      const havingConditions = having
+        .map((h) => `(${this.convertQueryParameters(h.toSQL())})`)
+        .join(" AND ");
+      buffer.push(`HAVING ${havingConditions}`);
+    }
+
+    // ORDER BY clause
+    if (orderBy?.length > 0) {
+      buffer.push(`ORDER BY ${orderBy.join(", ")}`);
+      // Handle NULLS ordering if specified in modifiers
+      const nullsOrder = modifiers
+        ?.flatMap((m) => m.modifiers)
+        .find((m) => m.nullsOrder)?.nullsOrder;
+      if (nullsOrder) {
+        buffer.push(`NULLS ${nullsOrder.toUpperCase()}`);
+      }
+    }
+
+    // LIMIT and OFFSET
+    if (limit != null) {
+      buffer.push(`LIMIT ${limit}`);
+    }
+    if (offset != null) {
+      buffer.push(`OFFSET ${offset}`);
+    }
+
+    const query = buffer.join(" ");
+    this.log("Built query:", query);
+    return query;
+  }
+
+  extractParameters(filters, having) {
+    const allFilters = [...(filters || []), ...(having || [])];
+    const params = allFilters.flatMap((f) => {
+      const sql = f.toSQL();
+      const paramCount = (sql.match(/\$\d+/g) || []).length;
+      return Array(paramCount).fill(null); // Placeholder for actual parameters
+    });
+    this.log("Extracted parameters count:", params.length);
+    return params;
+  }
+
   convertQueryParameters(query) {
     let paramCount = 0;
     const convertedQuery = query.replace(/\?/g, () => `$${++paramCount}`);
