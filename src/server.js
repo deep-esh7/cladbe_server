@@ -261,7 +261,7 @@ app.post("/api/sql/batch", async (req, res) => {
   }
 });
 
-// Initialize SQL components
+// Then in your initializeSqlComponents function, replace it with:
 async function initializeSqlComponents() {
   try {
     console.log("Initializing SQL components...");
@@ -270,12 +270,18 @@ async function initializeSqlComponents() {
       throw new Error("Database pool not initialized");
     }
 
-    const SqlQueryExecutor = require("./Helpers/sqlQueryExecutor");
+    // Initialize SQL executor with connection test
     sqlExecutor = new SqlQueryExecutor(db.pool);
-    await sqlExecutor.testConnection();
+    const client = await db.pool.connect();
+    try {
+      await client.query("SELECT NOW()");
+      console.log("Database connection test successful");
+    } finally {
+      client.release();
+    }
     console.log("SQL executor initialized and tested");
 
-    const ClientSqlHelper = require("./Helpers/clientSqlHelper");
+    // Initialize client SQL helper
     clientSqlHelper = new ClientSqlHelper(sqlExecutor);
     console.log("Client SQL helper initialized");
 

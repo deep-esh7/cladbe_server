@@ -3,41 +3,40 @@
 class DatabaseError extends Error {
   constructor(message, code, query, params) {
     super(message);
-    this.name = 'DatabaseError';
+    this.name = "DatabaseError";
     this.code = code;
     this.query = query;
     this.params = params;
     this.timestamp = new Date().toISOString();
     console.error(`[DatabaseError] ${code}: ${message}`);
-    console.error('Query:', query);
-    console.error('Parameters:', params);
+    console.error("Query:", query);
+    console.error("Parameters:", params);
   }
 }
 
 class SqlQueryExecutor {
   constructor(pool) {
-    console.log('Initializing SqlQueryExecutor...');
+    console.log("Initializing SqlQueryExecutor...");
     this.pool = pool;
     this.retryDelay = 1000;
     this.maxRetries = 3;
-    this.slowQueryThreshold = 1000; // 1 second
-    this._debugMode = true; // Always enable debug for visibility
+    this.slowQueryThreshold = 1000;
+    this._debugMode = true;
     this._metrics = {
       totalQueries: 0,
       slowQueries: 0,
       errors: 0,
-      totalDuration: 0
+      totalDuration: 0,
     };
-    
-    // Initialize query history with Map
+
     this._queryHistory = new Map();
 
-    this.pool.on('error', (err) => {
+    this.pool.on("error", (err) => {
       this._metrics.errors++;
-      console.error('[Pool Error]', err);
+      console.error("[Pool Error]", err);
     });
 
-    console.log('SqlQueryExecutor initialized successfully');
+    console.log("SqlQueryExecutor initialized successfully");
   }
 
   log(message, ...args) {
@@ -48,11 +47,35 @@ class SqlQueryExecutor {
     console.error(`[${new Date().toISOString()}] ERROR: ${message}`, ...args);
   }
 
+  // Add the missing testConnection method
+  async testConnection() {
+    try {
+      console.log("Testing database connection...");
+      const client = await this.pool.connect();
+
+      try {
+        await client.query("SELECT NOW()");
+        console.log("Database connection test successful");
+        return true;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error("Database connection test failed:", error);
+      throw new DatabaseError(
+        "Failed to establish database connection",
+        "CONNECTION_TEST_FAILED",
+        "SELECT NOW()",
+        []
+      );
+    }
+  }
+
   async executeQuery(query, params = [], options = {}) {
     const queryId = Math.random().toString(36).substring(7);
     this.log(`Starting query execution [${queryId}]`);
-    this.log('Query:', query);
-    this.log('Parameters:', params);
+    this.log("Query:", query);
+    this.log("Parameters:", params);
 
     let client;
     const startTime = Date.now();
@@ -91,18 +114,18 @@ class SqlQueryExecutor {
   }
 
   validateQueryAndParams(query, params = []) {
-    this.log('Validating query and parameters');
-    const paramMatches = (query.match(/\$\d+/g) || []);
+    this.log("Validating query and parameters");
+    const paramMatches = query.match(/\$\d+/g) || [];
     const paramCount = paramMatches.length;
 
     if (paramCount !== params.length) {
-      this.logError('Parameter count mismatch', {
+      this.logError("Parameter count mismatch", {
         expected: paramCount,
-        received: params.length
+        received: params.length,
       });
       throw new DatabaseError(
         `Parameter count mismatch. Expected ${paramCount}, got ${params.length}`,
-        'PARAM_MISMATCH',
+        "PARAM_MISMATCH",
         query,
         params
       );
@@ -110,47 +133,53 @@ class SqlQueryExecutor {
 
     // Validate parameter numbering
     const paramNumbers = paramMatches
-      .map(p => parseInt(p.substring(1)))
+      .map((p) => parseInt(p.substring(1)))
       .sort((a, b) => a - b);
 
     for (let i = 0; i < paramNumbers.length; i++) {
       if (paramNumbers[i] !== i + 1) {
-        this.logError('Invalid parameter sequence', {
+        this.logError("Invalid parameter sequence", {
           expected: i + 1,
-          received: paramNumbers[i]
+          received: paramNumbers[i],
         });
         throw new DatabaseError(
-          'Invalid parameter numbering. Must be sequential',
-          'PARAM_SEQUENCE',
+          "Invalid parameter numbering. Must be sequential",
+          "PARAM_SEQUENCE",
           query,
           params
         );
       }
     }
-    this.log('Query and parameters validated successfully');
+    this.log("Query and parameters validated successfully");
   }
 
   sanitizeParams(params) {
-    this.log('Sanitizing parameters');
-    return params.map(param => {
+    this.log("Sanitizing parameters");
+    return params.map((param) => {
       if (param === null || param === undefined) {
         return null;
       }
-      if (typeof param === 'string') {
+      if (typeof param === "string") {
         // Basic SQL injection prevention
-        return param.replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, char => {
+        return param.replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, (char) => {
           switch (char) {
-            case '\0': return '\\0';
-            case '\x08': return '\\b';
-            case '\x09': return '\\t';
-            case '\x1a': return '\\z';
-            case '\n': return '\\n';
-            case '\r': return '\\r';
+            case "\0":
+              return "\\0";
+            case "\x08":
+              return "\\b";
+            case "\x09":
+              return "\\t";
+            case "\x1a":
+              return "\\z";
+            case "\n":
+              return "\\n";
+            case "\r":
+              return "\\r";
             case '"':
             case "'":
-            case '\\':
-            case '%':
-              return '\\' + char;
+            case "\\":
+            case "%":
+              return "\\" + char;
             default:
               return char;
           }
@@ -167,12 +196,12 @@ class SqlQueryExecutor {
     this.log(`Executing query with ${timeout}ms timeout`);
     return Promise.race([
       client.query(query, params),
-      new Promise((_, reject) => 
+      new Promise((_, reject) =>
         setTimeout(() => {
-          this.logError('Query timeout reached');
-          reject(new Error('Query timeout'));
+          this.logError("Query timeout reached");
+          reject(new Error("Query timeout"));
         }, timeout)
-      )
+      ),
     ]);
   }
 
@@ -180,15 +209,22 @@ class SqlQueryExecutor {
     let retries = 0;
     while (retries < this.maxRetries) {
       try {
-        this.log(`Attempting to acquire connection (attempt ${retries + 1}/${this.maxRetries})`);
+        this.log(
+          `Attempting to acquire connection (attempt ${retries + 1}/${
+            this.maxRetries
+          })`
+        );
         const client = await this.pool.connect();
-        this.log('Connection acquired successfully');
+        this.log("Connection acquired successfully");
         return client;
       } catch (error) {
         retries++;
-        this.logError(`Failed to acquire connection (attempt ${retries}):`, error);
+        this.logError(
+          `Failed to acquire connection (attempt ${retries}):`,
+          error
+        );
         if (retries === this.maxRetries) throw error;
-        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+        await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
       }
     }
   }
@@ -196,11 +232,11 @@ class SqlQueryExecutor {
   async releaseConnection(client) {
     if (client) {
       try {
-        this.log('Releasing connection');
+        this.log("Releasing connection");
         await client.release();
-        this.log('Connection released successfully');
+        this.log("Connection released successfully");
       } catch (error) {
-        this.logError('Error releasing client:', error);
+        this.logError("Error releasing client:", error);
       }
     }
   }
@@ -219,9 +255,9 @@ class SqlQueryExecutor {
       duration,
       rowCount: result.rowCount,
       timestamp: new Date().toISOString(),
-      success: true
+      success: true,
     });
-    this.log('Metrics recorded successfully');
+    this.log("Metrics recorded successfully");
   }
 
   async handleError(queryId, error, query, params, startTime) {
@@ -232,7 +268,7 @@ class SqlQueryExecutor {
       error: error.message,
       duration,
       query,
-      params
+      params,
     });
 
     this._queryHistory.set(queryId, {
@@ -241,17 +277,17 @@ class SqlQueryExecutor {
       error: error.message,
       duration,
       timestamp: new Date().toISOString(),
-      success: false
+      success: false,
     });
   }
 
   async executeTransaction(queries) {
     const transactionId = Math.random().toString(36).substring(7);
     this.log(`Starting transaction [${transactionId}]`);
-    
+
     const client = await this.acquireConnection();
     try {
-      await client.query('BEGIN');
+      await client.query("BEGIN");
       this.log(`Transaction [${transactionId}] began`);
 
       const results = [];
@@ -266,12 +302,12 @@ class SqlQueryExecutor {
         results.push(result.rows);
       }
 
-      await client.query('COMMIT');
+      await client.query("COMMIT");
       this.log(`Transaction [${transactionId}] committed successfully`);
       return results;
     } catch (error) {
       this.logError(`Transaction [${transactionId}] failed:`, error);
-      await client.query('ROLLBACK');
+      await client.query("ROLLBACK");
       this.log(`Transaction [${transactionId}] rolled back`);
       throw error;
     } finally {
@@ -280,13 +316,14 @@ class SqlQueryExecutor {
   }
 
   async getMetrics() {
-    this.log('Retrieving metrics');
+    this.log("Retrieving metrics");
     const metrics = {
       ...this._metrics,
-      averageDuration: this._metrics.totalDuration / Math.max(this._metrics.totalQueries, 1),
-      errorRate: this._metrics.errors / Math.max(this._metrics.totalQueries, 1)
+      averageDuration:
+        this._metrics.totalDuration / Math.max(this._metrics.totalQueries, 1),
+      errorRate: this._metrics.errors / Math.max(this._metrics.totalQueries, 1),
     };
-    this.log('Current metrics:', metrics);
+    this.log("Current metrics:", metrics);
     return metrics;
   }
 
@@ -297,16 +334,16 @@ class SqlQueryExecutor {
       .slice(0, limit)
       .map(([id, details]) => ({
         queryId: id,
-        ...details
+        ...details,
       }));
     this.log(`Retrieved ${history.length} history entries`);
     return history;
   }
 
   clearQueryHistory() {
-    this.log('Clearing query history');
+    this.log("Clearing query history");
     this._queryHistory.clear();
-    this.log('Query history cleared');
+    this.log("Query history cleared");
   }
 }
 
