@@ -4,6 +4,7 @@ const morgan = require("morgan");
 const path = require("path");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const WebSocketHandler = require("./websocket/webSocketHandler.js");
 
 // Import database and helper dependencies
 const db = require("./db/connection.js");
@@ -16,6 +17,7 @@ const app = express();
 // Initialize variables for SQL components
 let sqlExecutor;
 let clientSqlHelper;
+let wsHandler;
 
 // Rate limiting
 const limiter = rateLimit({
@@ -26,16 +28,17 @@ const limiter = rateLimit({
   message: "Too many requests, please try again later.",
 });
 
-// CORS configuration
+// CORS configuration with WebSocket support
 const corsOptions = {
   origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Accept", "Authorization"],
   credentials: true,
   maxAge: 86400,
+  websocket: true,
 };
 
-// Enhanced security middleware
+// Enhanced security middleware with WebSocket allowances
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -44,6 +47,7 @@ app.use(
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "ws:", "wss:"], // Allow WebSocket connections
       },
     },
   })
@@ -79,6 +83,7 @@ app.get("/health", (req, res) => {
     service: "leads-api",
     environment: process.env.NODE_ENV || "development",
     dbConnection: !!db.pool,
+    webSocketStatus: wsHandler ? "connected" : "disconnected",
     uptime: process.uptime(),
     memory: process.memoryUsage(),
   };
@@ -281,6 +286,19 @@ async function initializeSqlComponents() {
   }
 }
 
+// Initialize WebSocket
+function initializeWebSocket(server) {
+  try {
+    console.log("Initializing WebSocket handler...");
+    wsHandler = new WebSocketHandler(server, clientSqlHelper);
+    console.log("WebSocket handler initialized successfully");
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize WebSocket handler:", error);
+    return false;
+  }
+}
+
 // Initialize database
 async function initializeDatabase() {
   try {
@@ -328,6 +346,64 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json(response);
 });
 
+// Start server
+async function startServer() {
+  try {
+    console.log("Starting server initialization...");
+
+    // Initialize SQL components first
+    const sqlInitialized = await initializeSqlComponents();
+    if (!sqlInitialized) {
+      throw new Error("Failed to initialize SQL components");
+    }
+
+    // Initialize database
+    const dbInitialized = await initializeDatabase();
+    if (!dbInitialized) {
+      throw new Error("Failed to initialize database");
+    }
+
+    // Start server
+    const server = app.listen(PORT, () => {
+      console.log("=".repeat(50));
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+      console.log(
+        `API base URL: https://cladbeserver-production.up.railway.app`
+      );
+      console.log(
+        `WebSocket URL: wss://cladbeserver-production.up.railway.app/ws`
+      );
+      console.log(`Process ID: ${process.pid}`);
+      console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
+      console.log("=".repeat(50));
+    });
+
+    // Initialize WebSocket after server starts
+    const wsInitialized = initializeWebSocket(server);
+    if (!wsInitialized) {
+      throw new Error("Failed to initialize WebSocket");
+    }
+
+    server.on("error", (error) => {
+      console.error("Server error:", error);
+      if (error.code === "EADDRINUSE") {
+        console.error(`Port ${PORT} is already in use`);
+        process.exit(1);
+      }
+    });
+
+    // Setup server timeout handling
+    server.timeout = 30000;
+    server.keepAliveTimeout = 65000;
+
+    return server;
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+}
+
 // Graceful shutdown handler
 async function gracefulShutdown(signal) {
   console.log(
@@ -342,6 +418,14 @@ async function gracefulShutdown(signal) {
   }, 10000);
 
   try {
+    // Close WebSocket connections
+    if (wsHandler) {
+      console.log("Closing WebSocket connections...");
+      wsHandler.wss.close(() => {
+        console.log("WebSocket server closed successfully");
+      });
+    }
+
     if (db.pool) {
       console.log("Closing database connections...");
       await db.pool.end();
@@ -373,55 +457,6 @@ process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 const PORT = process.env.PORT || 3000;
-
-// Start server
-async function startServer() {
-  try {
-    console.log("Starting server initialization...");
-
-    // Initialize SQL components first
-    const sqlInitialized = await initializeSqlComponents();
-    if (!sqlInitialized) {
-      throw new Error("Failed to initialize SQL components");
-    }
-
-    // Initialize database
-    const dbInitialized = await initializeDatabase();
-    if (!dbInitialized) {
-      throw new Error("Failed to initialize database");
-    }
-
-    // Start server
-    const server = app.listen(PORT, () => {
-      console.log("=".repeat(50));
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-      console.log(
-        `API base URL: https://cladbeserver-production.up.railway.app`
-      );
-      console.log(`Process ID: ${process.pid}`);
-      console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
-      console.log("=".repeat(50));
-    });
-
-    server.on("error", (error) => {
-      console.error("Server error:", error);
-      if (error.code === "EADDRINUSE") {
-        console.error(`Port ${PORT} is already in use`);
-        process.exit(1);
-      }
-    });
-
-    // Setup server timeout handling
-    server.timeout = 30000;
-    server.keepAliveTimeout = 65000;
-
-    return server;
-  } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
-  }
-}
 
 // Start the server and export for testing
 const server = startServer();
