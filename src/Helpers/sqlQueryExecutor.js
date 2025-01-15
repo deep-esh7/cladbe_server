@@ -1,273 +1,158 @@
-// File: SqlQueryExecutor.js
+// SqlQueryExecutor.js
+
 class DatabaseError extends Error {
   constructor(message, code, query, params) {
     super(message);
-    this.name = "DatabaseError";
+    this.name = 'DatabaseError';
     this.code = code;
     this.query = query;
     this.params = params;
     this.timestamp = new Date().toISOString();
+    console.error(`[DatabaseError] ${code}: ${message}`);
+    console.error('Query:', query);
+    console.error('Parameters:', params);
   }
 }
 
 class SqlQueryExecutor {
   constructor(pool) {
+    console.log('Initializing SqlQueryExecutor...');
     this.pool = pool;
     this.retryDelay = 1000;
     this.maxRetries = 3;
-    this._debugMode = process.env.DEBUG === "true";
+    this.slowQueryThreshold = 1000; // 1 second
+    this._debugMode = true; // Always enable debug for visibility
+    this._metrics = {
+      totalQueries: 0,
+      slowQueries: 0,
+      errors: 0,
+      totalDuration: 0
+    };
+    
+    // Initialize query history with Map
     this._queryHistory = new Map();
 
-    this.pool.on("error", (err) => {
-      this.debug("Pool error:", err);
+    this.pool.on('error', (err) => {
+      this._metrics.errors++;
+      console.error('[Pool Error]', err);
     });
+
+    console.log('SqlQueryExecutor initialized successfully');
   }
 
-  debug(...args) {
-    if (this._debugMode) {
-      console.log("[SqlQueryExecutor Debug]", ...args);
-    }
+  log(message, ...args) {
+    console.log(`[${new Date().toISOString()}] ${message}`, ...args);
   }
 
-  async verifyTableContents(tableName) {
-    const client = await this.pool.connect();
-    try {
-      this.debug(`Verifying contents for table: ${tableName}`);
-
-      // Check table definition
-      const structure = await client.query(
-        `
-        SELECT 
-          column_name, 
-          data_type, 
-          is_nullable,
-          column_default,
-          character_maximum_length,
-          numeric_precision,
-          numeric_scale
-        FROM information_schema.columns
-        WHERE table_name = $1
-        ORDER BY ordinal_position;
-      `,
-        [tableName]
-      );
-
-      // Check constraints
-      const constraints = await client.query(
-        `
-        SELECT 
-          tc.constraint_name,
-          tc.constraint_type,
-          kcu.column_name,
-          ccu.table_name AS foreign_table_name,
-          ccu.column_name AS foreign_column_name
-        FROM information_schema.table_constraints tc
-        LEFT JOIN information_schema.key_column_usage kcu
-          ON tc.constraint_name = kcu.constraint_name
-        LEFT JOIN information_schema.constraint_column_usage ccu
-          ON ccu.constraint_name = tc.constraint_name
-        WHERE tc.table_name = $1;
-      `,
-        [tableName]
-      );
-
-      // Get row count
-      const countResult = await client.query(
-        `SELECT COUNT(*) FROM ${tableName}`
-      );
-
-      // Get sample data
-      const sampleData = await client.query(`
-        SELECT * FROM ${tableName} 
-        ORDER BY ${this._getPrimaryKeyColumn(structure.rows) || "1"} 
-        LIMIT 5
-      `);
-
-      // Get table statistics
-      const stats = await client.query(
-        `
-        SELECT * FROM pg_stat_user_tables
-        WHERE relname = $1
-      `,
-        [tableName]
-      );
-
-      // Check for recent modifications
-      const modifications = await client.query(
-        `
-        SELECT 
-          schemaname,
-          relname,
-          n_tup_ins as inserts,
-          n_tup_upd as updates,
-          n_tup_del as deletes,
-          n_live_tup as live_tuples,
-          n_dead_tup as dead_tuples,
-          last_vacuum,
-          last_analyze
-        FROM pg_stat_user_tables
-        WHERE relname = $1
-      `,
-        [tableName]
-      );
-
-      const verificationResults = {
-        structure: structure.rows,
-        constraints: constraints.rows,
-        rowCount: parseInt(countResult.rows[0].count),
-        sampleData: sampleData.rows,
-        statistics: stats.rows[0],
-        modifications: modifications.rows[0],
-      };
-
-      this.debug("Table verification results:", verificationResults);
-      return verificationResults;
-    } catch (error) {
-      this.debug("Table verification failed:", error);
-      throw error;
-    } finally {
-      client.release();
-    }
+  logError(message, ...args) {
+    console.error(`[${new Date().toISOString()}] ERROR: ${message}`, ...args);
   }
 
-  async executeQuery(query, params = [], retryCount = 0) {
+  async executeQuery(query, params = [], options = {}) {
     const queryId = Math.random().toString(36).substring(7);
-    const client = await this.pool.connect();
+    this.log(`Starting query execution [${queryId}]`);
+    this.log('Query:', query);
+    this.log('Parameters:', params);
+
+    let client;
+    const startTime = Date.now();
 
     try {
-      this.debug(`[Query ${queryId}] Executing:`, {
-        query,
-        params,
-        retryCount,
-        timestamp: new Date().toISOString(),
-      });
+      client = await this.acquireConnection();
+      this.log(`Connection acquired for query [${queryId}]`);
 
       // Validate and sanitize parameters
       this.validateQueryAndParams(query, params);
       const sanitizedParams = this.sanitizeParams(params);
 
-      const startTime = Date.now();
-      const result = await client.query(query, sanitizedParams);
-      const duration = Date.now() - startTime;
-
-      this._queryHistory.set(queryId, {
+      // Execute query with timeout
+      const result = await this.executeWithTimeout(
+        client,
         query,
-        params: sanitizedParams,
-        duration,
-        rowCount: result.rowCount,
-        timestamp: new Date().toISOString(),
-        success: true,
-      });
+        sanitizedParams,
+        options.timeout || 30000
+      );
 
-      this.debug(`[Query ${queryId}] Successful:`, {
-        duration,
-        rowCount: result.rowCount,
-      });
+      const duration = Date.now() - startTime;
+      await this.recordMetrics(queryId, duration, result);
 
+      this.log(`Query [${queryId}] completed successfully in ${duration}ms`);
       return result.rows;
     } catch (error) {
-      this._queryHistory.set(queryId, {
-        query,
-        params,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-        success: false,
-      });
-
-      if (error.code === "42P01" && retryCount < this.maxRetries) {
-        this.debug(`[Query ${queryId}] Table does not exist, retrying...`);
-        await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
-        return this.executeQuery(query, params, retryCount + 1);
-      }
-
-      this.debug(`[Query ${queryId}] Failed:`, error);
+      this.logError(`Query [${queryId}] failed:`, error);
+      await this.handleError(queryId, error, query, params, startTime);
       throw error;
     } finally {
-      client.release();
+      if (client) {
+        await this.releaseConnection(client);
+        this.log(`Connection released for query [${queryId}]`);
+      }
     }
   }
 
-  async getQueryHistory(limit = 10) {
-    const history = Array.from(this._queryHistory.entries())
-      .sort((a, b) => new Date(b[1].timestamp) - new Date(a[1].timestamp))
-      .slice(0, limit);
-
-    return history.map(([id, details]) => ({
-      queryId: id,
-      ...details,
-    }));
-  }
-
-  clearQueryHistory() {
-    this._queryHistory.clear();
-    this.debug("Query history cleared");
-  }
-
   validateQueryAndParams(query, params = []) {
-    this.debug("Validating query and params:", { query, params });
-
-    const paramMatches = query.match(/\$\d+/g) || [];
+    this.log('Validating query and parameters');
+    const paramMatches = (query.match(/\$\d+/g) || []);
     const paramCount = paramMatches.length;
 
     if (paramCount !== params.length) {
-      this.debug("Parameter count mismatch:", {
+      this.logError('Parameter count mismatch', {
         expected: paramCount,
-        got: params.length,
+        received: params.length
       });
       throw new DatabaseError(
-        `Parameter count mismatch. Query expects ${paramCount} parameters but got ${params.length}`,
-        "PARAM_COUNT_MISMATCH",
+        `Parameter count mismatch. Expected ${paramCount}, got ${params.length}`,
+        'PARAM_MISMATCH',
         query,
         params
       );
     }
 
+    // Validate parameter numbering
     const paramNumbers = paramMatches
-      .map((p) => parseInt(p.substring(1)))
+      .map(p => parseInt(p.substring(1)))
       .sort((a, b) => a - b);
 
     for (let i = 0; i < paramNumbers.length; i++) {
       if (paramNumbers[i] !== i + 1) {
-        this.debug("Invalid parameter numbering:", {
+        this.logError('Invalid parameter sequence', {
           expected: i + 1,
-          got: paramNumbers[i],
+          received: paramNumbers[i]
         });
         throw new DatabaseError(
-          `Invalid parameter numbering. Parameters must be sequential starting from $1`,
-          "INVALID_PARAM_NUMBERING",
+          'Invalid parameter numbering. Must be sequential',
+          'PARAM_SEQUENCE',
           query,
           params
         );
       }
     }
-
-    this.debug("Query validation successful");
+    this.log('Query and parameters validated successfully');
   }
 
   sanitizeParams(params) {
-    return params.map((param) => {
-      if (param === null || param === undefined) return null;
-      if (typeof param === "string") {
+    this.log('Sanitizing parameters');
+    return params.map(param => {
+      if (param === null || param === undefined) {
+        return null;
+      }
+      if (typeof param === 'string') {
         // Basic SQL injection prevention
-        return param.replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, (char) => {
+        return param.replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, char => {
           switch (char) {
-            case "\0":
-              return "\\0";
-            case "\x08":
-              return "\\b";
-            case "\x09":
-              return "\\t";
-            case "\x1a":
-              return "\\z";
-            case "\n":
-              return "\\n";
-            case "\r":
-              return "\\r";
+            case '\0': return '\\0';
+            case '\x08': return '\\b';
+            case '\x09': return '\\t';
+            case '\x1a': return '\\z';
+            case '\n': return '\\n';
+            case '\r': return '\\r';
             case '"':
             case "'":
-            case "\\":
-            case "%":
-              return "\\" + char;
+            case '\\':
+            case '%':
+              return '\\' + char;
+            default:
+              return char;
           }
         });
       }
@@ -278,201 +163,150 @@ class SqlQueryExecutor {
     });
   }
 
-  async executeTransaction(queries, retryCount = 0) {
+  async executeWithTimeout(client, query, params, timeout) {
+    this.log(`Executing query with ${timeout}ms timeout`);
+    return Promise.race([
+      client.query(query, params),
+      new Promise((_, reject) => 
+        setTimeout(() => {
+          this.logError('Query timeout reached');
+          reject(new Error('Query timeout'));
+        }, timeout)
+      )
+    ]);
+  }
+
+  async acquireConnection() {
+    let retries = 0;
+    while (retries < this.maxRetries) {
+      try {
+        this.log(`Attempting to acquire connection (attempt ${retries + 1}/${this.maxRetries})`);
+        const client = await this.pool.connect();
+        this.log('Connection acquired successfully');
+        return client;
+      } catch (error) {
+        retries++;
+        this.logError(`Failed to acquire connection (attempt ${retries}):`, error);
+        if (retries === this.maxRetries) throw error;
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+      }
+    }
+  }
+
+  async releaseConnection(client) {
+    if (client) {
+      try {
+        this.log('Releasing connection');
+        await client.release();
+        this.log('Connection released successfully');
+      } catch (error) {
+        this.logError('Error releasing client:', error);
+      }
+    }
+  }
+
+  async recordMetrics(queryId, duration, result) {
+    this.log(`Recording metrics for query [${queryId}]`);
+    this._metrics.totalQueries++;
+    this._metrics.totalDuration += duration;
+
+    if (duration > this.slowQueryThreshold) {
+      this._metrics.slowQueries++;
+      this.log(`[Query ${queryId}] Slow query detected: ${duration}ms`);
+    }
+
+    this._queryHistory.set(queryId, {
+      duration,
+      rowCount: result.rowCount,
+      timestamp: new Date().toISOString(),
+      success: true
+    });
+    this.log('Metrics recorded successfully');
+  }
+
+  async handleError(queryId, error, query, params, startTime) {
+    const duration = Date.now() - startTime;
+    this._metrics.errors++;
+
+    this.logError(`Error in query [${queryId}]:`, {
+      error: error.message,
+      duration,
+      query,
+      params
+    });
+
+    this._queryHistory.set(queryId, {
+      query,
+      params,
+      error: error.message,
+      duration,
+      timestamp: new Date().toISOString(),
+      success: false
+    });
+  }
+
+  async executeTransaction(queries) {
     const transactionId = Math.random().toString(36).substring(7);
-    const client = await this.pool.connect();
+    this.log(`Starting transaction [${transactionId}]`);
+    
+    const client = await this.acquireConnection();
     try {
-      this.debug(`[Transaction ${transactionId}] Beginning`);
-      await client.query("BEGIN");
+      await client.query('BEGIN');
+      this.log(`Transaction [${transactionId}] began`);
 
       const results = [];
       for (const { query, params = [] } of queries) {
-        this.debug(`[Transaction ${transactionId}] Executing query:`, {
+        this.log(`Executing query in transaction [${transactionId}]:`, query);
+        const result = await this.executeWithTimeout(
+          client,
           query,
-          params,
-          timestamp: new Date().toISOString(),
-        });
-
-        try {
-          this.validateQueryAndParams(query, params);
-          const sanitizedParams = this.sanitizeParams(params);
-          const result = await client.query(query, sanitizedParams);
-          results.push(result.rows);
-
-          this.debug(`[Transaction ${transactionId}] Query successful:`, {
-            rowCount: result.rowCount,
-          });
-        } catch (error) {
-          if (error.code === "42P01" && retryCount < this.maxRetries) {
-            this.debug(
-              `[Transaction ${transactionId}] Table does not exist, retrying...`
-            );
-            await client.query("ROLLBACK");
-            await new Promise((resolve) =>
-              setTimeout(resolve, this.retryDelay)
-            );
-            return this.executeTransaction(queries, retryCount + 1);
-          }
-          throw error;
-        }
+          this.sanitizeParams(params),
+          30000
+        );
+        results.push(result.rows);
       }
 
-      await client.query("COMMIT");
-      this.debug(`[Transaction ${transactionId}] Committed successfully`);
+      await client.query('COMMIT');
+      this.log(`Transaction [${transactionId}] committed successfully`);
       return results;
     } catch (error) {
-      this.debug(`[Transaction ${transactionId}] Failed:`, error);
-      await client.query("ROLLBACK");
-      this.debug(`[Transaction ${transactionId}] Rolled back`);
-      throw new DatabaseError(
-        error.message,
-        error.code,
-        "Transaction",
-        queries
-      );
-    } finally {
-      client.release();
-      this.debug(`[Transaction ${transactionId}] Client released`);
-    }
-  }
-
-  async executePreparedStatement(name, query, params = []) {
-    const statementId = Math.random().toString(36).substring(7);
-    const client = await this.pool.connect();
-    try {
-      this.debug(`[Statement ${statementId}] Preparing:`, {
-        name,
-        query,
-        params,
-      });
-
-      this.validateQueryAndParams(query, params);
-      const sanitizedParams = this.sanitizeParams(params);
-
-      try {
-        await client.query(`DEALLOCATE IF EXISTS "${name}"`);
-      } catch (error) {
-        this.debug(
-          `[Statement ${statementId}] Deallocate not needed:`,
-          error.message
-        );
-      }
-
-      await client.query(`PREPARE "${name}" AS ${query}`);
-      const result = await client.query(
-        `EXECUTE "${name}"($1)`,
-        sanitizedParams
-      );
-      await client.query(`DEALLOCATE "${name}"`);
-
-      return result.rows;
-    } catch (error) {
-      this.debug(`[Statement ${statementId}] Failed:`, error);
-      throw new DatabaseError(error.message, error.code, query, params);
-    } finally {
-      client.release();
-    }
-  }
-
-  async executeWithLock(tableName, operation, timeout = 30000) {
-    const lockId = Math.random().toString(36).substring(7);
-    const client = await this.pool.connect();
-    try {
-      this.debug(`[Lock ${lockId}] Acquiring lock on table ${tableName}`);
-      await client.query("BEGIN");
-      await client.query(`SET LOCAL statement_timeout = ${timeout}`);
-      await client.query(`LOCK TABLE ${tableName} IN ACCESS EXCLUSIVE MODE`);
-
-      this.debug(`[Lock ${lockId}] Lock acquired, executing operation`);
-      const result = await operation(client);
-
-      await client.query("COMMIT");
-      this.debug(`[Lock ${lockId}] Operation completed and committed`);
-      return result;
-    } catch (error) {
-      this.debug(`[Lock ${lockId}] Operation failed:`, error);
-      await client.query("ROLLBACK");
-      throw new DatabaseError(
-        error.message,
-        error.code,
-        `LOCK TABLE ${tableName}`,
-        null
-      );
-    } finally {
-      client.release();
-    }
-  }
-
-  _getPrimaryKeyColumn(columns) {
-    const idColumn = columns.find(
-      (col) =>
-        col.column_name.toLowerCase() === "id" ||
-        col.column_default?.includes("nextval")
-    );
-    return idColumn ? idColumn.column_name : null;
-  }
-
-  async analyzeTablePerformance(tableName) {
-    const client = await this.pool.connect();
-    try {
-      const stats = {
-        indexes: await client.query(
-          `
-          SELECT
-            schemaname,
-            tablename,
-            indexname,
-            idx_scan,
-            idx_tup_read,
-            idx_tup_fetch
-          FROM pg_stat_user_indexes
-          WHERE tablename = $1;
-        `,
-          [tableName]
-        ),
-
-        tableStats: await client.query(
-          `
-          SELECT
-            seq_scan,
-            seq_tup_read,
-            idx_scan,
-            n_tup_ins,
-            n_tup_upd,
-            n_tup_del,
-            n_live_tup,
-            n_dead_tup,
-            last_vacuum,
-            last_autovacuum,
-            last_analyze,
-            last_autoanalyze
-          FROM pg_stat_user_tables
-          WHERE relname = $1;
-        `,
-          [tableName]
-        ),
-
-        size: await client.query(
-          `
-          SELECT
-            pg_size_pretty(pg_total_relation_size($1)) as total_size,
-            pg_size_pretty(pg_table_size($1)) as table_size,
-            pg_size_pretty(pg_indexes_size($1)) as index_size
-          FROM pg_class
-          WHERE relname = $1;
-        `,
-          [tableName]
-        ),
-      };
-
-      this.debug("Performance analysis results:", stats);
-      return stats;
-    } catch (error) {
-      this.debug("Performance analysis failed:", error);
+      this.logError(`Transaction [${transactionId}] failed:`, error);
+      await client.query('ROLLBACK');
+      this.log(`Transaction [${transactionId}] rolled back`);
       throw error;
     } finally {
-      client.release();
+      await this.releaseConnection(client);
     }
+  }
+
+  async getMetrics() {
+    this.log('Retrieving metrics');
+    const metrics = {
+      ...this._metrics,
+      averageDuration: this._metrics.totalDuration / Math.max(this._metrics.totalQueries, 1),
+      errorRate: this._metrics.errors / Math.max(this._metrics.totalQueries, 1)
+    };
+    this.log('Current metrics:', metrics);
+    return metrics;
+  }
+
+  async getQueryHistory(limit = 10) {
+    this.log(`Retrieving query history (limit: ${limit})`);
+    const history = Array.from(this._queryHistory.entries())
+      .sort((a, b) => new Date(b[1].timestamp) - new Date(a[1].timestamp))
+      .slice(0, limit)
+      .map(([id, details]) => ({
+        queryId: id,
+        ...details
+      }));
+    this.log(`Retrieved ${history.length} history entries`);
+    return history;
+  }
+
+  clearQueryHistory() {
+    this.log('Clearing query history');
+    this._queryHistory.clear();
+    this.log('Query history cleared');
   }
 }
 

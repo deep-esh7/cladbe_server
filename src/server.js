@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const path = require("path");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 // Import database and helper dependencies
 const db = require("./db/connection.js");
@@ -15,6 +17,15 @@ const app = express();
 let sqlExecutor;
 let clientSqlHelper;
 
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many requests, please try again later.",
+});
+
 // CORS configuration
 const corsOptions = {
   origin: "*",
@@ -24,63 +35,72 @@ const corsOptions = {
   maxAge: 86400,
 };
 
+// Enhanced security middleware
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
+    },
+  })
+);
+
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(morgan("dev"));
+app.use(limiter);
 
-// Request logging middleware
+// Request logging
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  const timestamp = new Date().toISOString();
+  const requestId = Math.random().toString(36).substring(7);
+
+  console.log(`[${timestamp}] RequestID: ${requestId}`);
+  console.log(`Method: ${req.method} URL: ${req.url}`);
+  console.log("Headers:", req.headers);
   console.log("Query Parameters:", req.query);
   console.log("Body:", req.body);
+
+  res.setHeader("X-Request-ID", requestId);
   next();
 });
 
 // Health check route
 app.get("/health", (req, res) => {
-  res.status(200).json({
+  const healthInfo = {
     status: "ok",
     timestamp: new Date().toISOString(),
     service: "leads-api",
-  });
+    environment: process.env.NODE_ENV || "development",
+    dbConnection: !!db.pool,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+  };
+
+  res.status(200).json(healthInfo);
 });
 
-// Mount routes with /api prefix
+// Routes
 app.use("/api/leads", leadsRoutes);
-
-// Function to initialize SQL components
-async function initializeSqlComponents() {
-  try {
-    console.log("Initializing SQL components...");
-
-    if (!db.pool) {
-      throw new Error("Database pool not initialized");
-    }
-
-    const SqlQueryExecutor = require("./Helpers/sqlQueryExecutor");
-    sqlExecutor = new SqlQueryExecutor(db.pool);
-    console.log("SQL executor initialized");
-
-    const ClientSqlHelper = require("./Helpers/clientSqlHelper");
-    clientSqlHelper = new ClientSqlHelper(sqlExecutor);
-    console.log("Client SQL helper initialized");
-
-    return true;
-  } catch (error) {
-    console.error("Failed to initialize SQL components:", error);
-    return false;
-  }
-}
 
 // SQL Query Routes
 app.post("/api/sql/query", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    console.log("Executing SQL query:", req.body);
     const { query, parameters } = req.body;
+    console.log("Executing SQL query:", {
+      query,
+      parameters,
+      timestamp: new Date().toISOString(),
+    });
+
     const result = await clientSqlHelper.executeRead(query, parameters);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -93,8 +113,13 @@ app.post("/api/sql/execute", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    console.log("Executing SQL command:", req.body);
     const { query, parameters } = req.body;
+    console.log("Executing SQL command:", {
+      query,
+      parameters,
+      timestamp: new Date().toISOString(),
+    });
+
     const result = await clientSqlHelper.executeWrite(query, parameters);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -146,9 +171,9 @@ app.post("/api/sql/table/create", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    console.log("Creating table:", req.body);
-    const { tableName, query } = req.body;
-    await clientSqlHelper.executeWrite(query);
+    const { tableName, columns } = req.body;
+    console.log("Creating table:", { tableName, columns });
+    await clientSqlHelper.createTable(tableName, columns);
     res.json({
       success: true,
       message: `Table ${tableName} created successfully`,
@@ -178,9 +203,10 @@ app.post("/api/sql/transaction-begin", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    console.log("Beginning transaction");
+    const transactionId = Math.random().toString(36).substring(7);
+    console.log(`Beginning transaction: ${transactionId}`);
     await clientSqlHelper.executeWrite("BEGIN");
-    res.json({ success: true });
+    res.json({ success: true, transactionId });
   } catch (error) {
     console.error("Transaction begin failed:", error);
     res.status(500).json({ success: false, error: error.message });
@@ -191,7 +217,8 @@ app.post("/api/sql/transaction-commit", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    console.log("Committing transaction");
+    const { transactionId } = req.body;
+    console.log(`Committing transaction: ${transactionId}`);
     await clientSqlHelper.executeWrite("COMMIT");
     res.json({ success: true });
   } catch (error) {
@@ -204,7 +231,8 @@ app.post("/api/sql/transaction-rollback", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    console.log("Rolling back transaction");
+    const { transactionId } = req.body;
+    console.log(`Rolling back transaction: ${transactionId}`);
     await clientSqlHelper.executeWrite("ROLLBACK");
     res.json({ success: true });
   } catch (error) {
@@ -219,10 +247,8 @@ app.post("/api/sql/batch", async (req, res) => {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
     const { queries } = req.body;
-    console.log("Executing batch queries:", queries);
-    const results = await clientSqlHelper.executeTransaction(
-      queries.map((query) => ({ query, params: [] }))
-    );
+    console.log("Executing batch queries:", queries.length);
+    const results = await clientSqlHelper.executeTransaction(queries);
     res.json({ success: true, data: results });
   } catch (error) {
     console.error("Batch operation failed:", error);
@@ -230,47 +256,30 @@ app.post("/api/sql/batch", async (req, res) => {
   }
 });
 
-// 404 handler
-app.use((req, res) => {
-  console.log(`404 - Route not found: ${req.method} ${req.url}`);
-  res.status(404).json({
-    success: false,
-    error: "Not Found",
-    message: `Cannot ${req.method} ${req.url}`,
-  });
-});
+// Initialize SQL components
+async function initializeSqlComponents() {
+  try {
+    console.log("Initializing SQL components...");
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error("Error occurred:", err);
-  console.error("Stack trace:", err.stack);
+    if (!db.pool) {
+      throw new Error("Database pool not initialized");
+    }
 
-  const isOperationalError = err.isOperational || false;
+    const SqlQueryExecutor = require("./Helpers/sqlQueryExecutor");
+    sqlExecutor = new SqlQueryExecutor(db.pool);
+    await sqlExecutor.testConnection();
+    console.log("SQL executor initialized and tested");
 
-  if (err.name === "ValidationError") {
-    return res.status(400).json({
-      success: false,
-      error: "Validation Error",
-      message: err.message,
-      details: err.details,
-    });
+    const ClientSqlHelper = require("./Helpers/clientSqlHelper");
+    clientSqlHelper = new ClientSqlHelper(sqlExecutor);
+    console.log("Client SQL helper initialized");
+
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize SQL components:", error);
+    return false;
   }
-
-  if (err.name === "UnauthorizedError") {
-    return res.status(401).json({
-      success: false,
-      error: "Unauthorized",
-      message: "Invalid or missing authentication token",
-    });
-  }
-
-  res.status(err.status || 500).json({
-    success: false,
-    error: isOperationalError ? err.message : "Internal Server Error",
-    message: isOperationalError ? err.message : "An unexpected error occurred",
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
-  });
-});
+}
 
 // Initialize database
 async function initializeDatabase() {
@@ -300,31 +309,55 @@ async function initializeDatabase() {
   }
 }
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] Error occurred:`, err);
+
+  const response = {
+    success: false,
+    error: err.message || "Internal Server Error",
+    requestId: req.headers["x-request-id"],
+    timestamp,
+  };
+
+  if (process.env.NODE_ENV === "development") {
+    response.stack = err.stack;
+  }
+
+  res.status(err.status || 500).json(response);
+});
+
 // Graceful shutdown handler
-function gracefulShutdown(signal) {
+async function gracefulShutdown(signal) {
   console.log(
     `${signal || "Shutdown"} signal received. Starting graceful shutdown...`
   );
 
-  if (db.pool) {
-    console.log("Closing database connections...");
-    db.pool.end(() => {
-      console.log("Database connections closed");
-      process.exit(0);
-    });
-  } else {
-    process.exit(0);
-  }
-
-  setTimeout(() => {
+  let shutdownTimeout = setTimeout(() => {
     console.error(
       "Could not close connections in time, forcefully shutting down"
     );
     process.exit(1);
   }, 10000);
+
+  try {
+    if (db.pool) {
+      console.log("Closing database connections...");
+      await db.pool.end();
+      console.log("Database connections closed successfully");
+    }
+
+    clearTimeout(shutdownTimeout);
+    console.log("Graceful shutdown completed");
+    process.exit(0);
+  } catch (error) {
+    console.error("Error during shutdown:", error);
+    process.exit(1);
+  }
 }
 
-// Process error handlers
+// Process event handlers
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
   console.error("Stack:", error.stack);
@@ -360,11 +393,15 @@ async function startServer() {
 
     // Start server
     const server = app.listen(PORT, () => {
+      console.log("=".repeat(50));
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
       console.log(
         `API base URL: https://cladbeserver-production.up.railway.app`
       );
+      console.log(`Process ID: ${process.pid}`);
+      console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
+      console.log("=".repeat(50));
     });
 
     server.on("error", (error) => {
@@ -374,6 +411,10 @@ async function startServer() {
         process.exit(1);
       }
     });
+
+    // Setup server timeout handling
+    server.timeout = 30000;
+    server.keepAliveTimeout = 65000;
 
     return server;
   } catch (error) {
