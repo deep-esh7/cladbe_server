@@ -281,7 +281,7 @@ async function initializeSqlComponents() {
       client.release();
     }
     console.log("SQL executor initialized and tested");
-
+    const ClientSqlHelper = require("./Helpers/clientSqlHelper");
     // Initialize client SQL helper
     clientSqlHelper = new ClientSqlHelper(sqlExecutor);
     console.log("Client SQL helper initialized");
