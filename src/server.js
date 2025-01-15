@@ -271,6 +271,7 @@ async function initializeSqlComponents() {
     }
 
     // Initialize SQL executor with connection test
+    const SqlQueryExecutor = require("./Helpers/sqlQueryExecutor");
     sqlExecutor = new SqlQueryExecutor(db.pool);
     const client = await db.pool.connect();
     try {
