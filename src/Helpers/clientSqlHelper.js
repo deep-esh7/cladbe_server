@@ -769,6 +769,53 @@ class ClientSqlHelper {
       );
     }
   }
+  async getAllTables(includeStats = false) {
+    const operation = "GET_ALL_TABLES";
+    try {
+      this.log("Getting all tables" + (includeStats ? " with statistics" : ""));
+  
+      const query = includeStats
+        ? `
+        SELECT 
+          t.table_name as name,
+          pg_stat_get_live_tuples(pgc.oid) as row_count,
+          pg_total_relation_size(pgc.oid) as size_in_bytes,
+          pg_stat_get_last_analyze_time(pgc.oid) as last_analyzed,
+          obj_description(pgc.oid, 'pg_class') as description
+        FROM information_schema.tables t
+        JOIN pg_class pgc ON pgc.relname = t.table_name
+        WHERE t.table_schema = 'public'
+        AND t.table_type = 'BASE TABLE'
+        ORDER BY t.table_name;
+        `
+        : `
+        SELECT 
+          table_name as name,
+          null as row_count,
+          null as size_in_bytes,
+          null as last_analyzed,
+          null as description
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        ORDER BY table_name;
+        `;
+  
+      const tables = await this.executeRead(query);
+      
+      this.log(`Found ${tables.length} tables`);
+      return tables;
+    } catch (error) {
+      this.logError("Get all tables failed:", error);
+      throw new ClientSqlError(
+        "Get all tables failed: " + error.message,
+        operation,
+        null,
+        { includeStats },
+        error
+      );
+    }
+  }
 
   async analyze(tableName, columns = []) {
     const operation = "ANALYZE";
