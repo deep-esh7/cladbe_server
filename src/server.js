@@ -11,8 +11,31 @@ const db = require("./db/connection.js");
 const { DatabaseHelper } = require("./Helpers/databaseHelper");
 const { TableHelper } = require("./Helpers/leadsTableHelper");
 const leadsRoutes = require("./routes/leadsSearch.routes");
+const pg = require('pg');  // Add this at the top with other imports
 
 const app = express();
+// Add this with other global variables
+let notificationListener;
+
+// Initialize PostgreSQL notification listener
+async function setupNotificationListener(pool) {
+  notificationListener = new pg.Client(pool.options);
+  await notificationListener.connect();
+  
+  notificationListener.on('notification', async (msg) => {
+    try {
+      const payload = JSON.parse(msg.payload);
+      if (wsHandler) {
+        await wsHandler.handleDatabaseChange(payload.table);
+      }
+    } catch (e) {
+      console.error('Error handling database notification:', e);
+    }
+  });
+  
+  await notificationListener.query('LISTEN table_changes');
+  return notificationListener;
+}
 
 // Initialize variables for SQL components
 let sqlExecutor;
@@ -294,10 +317,22 @@ async function initializeSqlComponents() {
 }
 
 // Initialize WebSocket
-function initializeWebSocket(server) {
+async function initializeWebSocket(server) {
   try {
     console.log("Initializing WebSocket handler...");
-    wsHandler = new WebSocketHandler(server, clientSqlHelper);
+
+    // Create notification listener
+    const notificationListener = await setupNotificationListener(db.pool);
+
+    // Initialize WebSocket handler with PostgreSQL pool and notification listener
+    wsHandler = new WebSocketHandler(server, clientSqlHelper, db.pool);
+
+    // Setup trigger for all tables
+    const tables = await clientSqlHelper.getAllTables();
+    for (const table of tables) {
+      await wsHandler.setupTableTrigger(table.name);
+    }
+
     console.log("WebSocket handler initialized successfully");
     return true;
   } catch (error) {
@@ -306,7 +341,6 @@ function initializeWebSocket(server) {
   }
 }
 
-// Initialize database
 async function initializeDatabase() {
   try {
     console.log("Starting database initialization...");
@@ -318,10 +352,24 @@ async function initializeDatabase() {
     if (!dbExists) {
       console.log("Creating database 'cladbe'...");
       await dbHelper.createDatabase("cladbe");
-      console.log("Database created successfully");
-    } else {
-      console.log("Database 'cladbe' already exists");
     }
+
+    // Setup notification function if not exists
+    await db.pool.query(`
+      CREATE OR REPLACE FUNCTION notify_table_change() RETURNS TRIGGER AS $$
+      BEGIN
+        PERFORM pg_notify(
+          'table_changes',
+          json_build_object(
+            'table', TG_TABLE_NAME,
+            'operation', TG_OP,
+            'time', CURRENT_TIMESTAMP
+          )::text
+        );
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
 
     console.log("Setting up tables and indexes...");
     await tableHelper.createLeadsSearchTable();
@@ -354,6 +402,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
+// Modified startServer function
 async function startServer() {
   try {
     console.log("Starting server initialization...");
@@ -370,7 +419,7 @@ async function startServer() {
       throw new Error("Failed to initialize database");
     }
 
-    // Start server
+    // Start server with increased timeouts for long-running operations
     const server = app.listen(PORT, () => {
       console.log("=".repeat(50));
       console.log(`Server running on port ${PORT}`);
@@ -386,12 +435,17 @@ async function startServer() {
       console.log("=".repeat(50));
     });
 
+    // Increase server timeouts
+    server.timeout = 120000; // 2 minutes
+    server.keepAliveTimeout = 65000;
+
     // Initialize WebSocket after server starts
-    const wsInitialized = initializeWebSocket(server);
+    const wsInitialized = await initializeWebSocket(server);
     if (!wsInitialized) {
       throw new Error("Failed to initialize WebSocket");
     }
 
+    // Enhanced error handling for server
     server.on("error", (error) => {
       console.error("Server error:", error);
       if (error.code === "EADDRINUSE") {
@@ -400,10 +454,6 @@ async function startServer() {
       }
     });
 
-    // Setup server timeout handling
-    server.timeout = 30000;
-    server.keepAliveTimeout = 65000;
-
     return server;
   } catch (error) {
     console.error("Failed to start server:", error);
@@ -411,28 +461,30 @@ async function startServer() {
   }
 }
 
-// Graceful shutdown handler
 async function gracefulShutdown(signal) {
-  console.log(
-    `${signal || "Shutdown"} signal received. Starting graceful shutdown...`
-  );
+  console.log(`${signal || "Shutdown"} signal received. Starting graceful shutdown...`);
 
-  let shutdownTimeout = setTimeout(() => {
-    console.error(
-      "Could not close connections in time, forcefully shutting down"
-    );
+  const shutdownTimeout = setTimeout(() => {
+    console.error("Could not close connections in time, forcefully shutting down");
     process.exit(1);
-  }, 10000);
+  }, 30000);
 
   try {
-    // Close WebSocket connections
+    // Close WebSocket connections gracefully
     if (wsHandler) {
       console.log("Closing WebSocket connections...");
-      wsHandler.wss.close(() => {
-        console.log("WebSocket server closed successfully");
-      });
+      await wsHandler.gracefulShutdown();
+      console.log("WebSocket server closed successfully");
     }
 
+    // Close notification listener if it exists
+    if (notificationListener) {
+      console.log("Closing notification listener...");
+      await notificationListener.end();
+      console.log("Notification listener closed successfully");
+    }
+
+    // Close database connections
     if (db.pool) {
       console.log("Closing database connections...");
       await db.pool.end();
@@ -447,7 +499,6 @@ async function gracefulShutdown(signal) {
     process.exit(1);
   }
 }
-
 // Process event handlers
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);

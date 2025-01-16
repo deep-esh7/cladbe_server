@@ -3,14 +3,18 @@ const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
 
 class WebSocketHandler {
-  constructor(server, clientSqlHelper) {
+  constructor(server, clientSqlHelper, pool) {
     this.wss = new WebSocket.Server({ server, path: "/ws" });
     this.clientSqlHelper = clientSqlHelper;
+    this.pool = pool; // Database pool
     this.subscriptions = new Map();
     this.clientSubscriptions = new Map();
+    this.dataCache = new Map(); // Cache for last sent data
     this.setupWebSocket();
-
     this.log("WebSocketHandler initialized");
+
+    // Set up PostgreSQL notification listener
+    this.setupNotificationListener();
   }
 
   log(message, ...args) {
@@ -27,6 +31,33 @@ class WebSocketHandler {
     );
   }
 
+  async setupNotificationListener() {
+    try {
+      const client = await this.pool.connect();
+      client.on("notification", async (msg) => {
+        // Handle database change notifications
+        const { table, operation } = JSON.parse(msg.payload);
+        await this.handleDatabaseChange(table);
+      });
+
+      // Listen for changes on all relevant tables
+      await client.query("LISTEN table_changes");
+
+      this.log("Notification listener setup completed");
+    } catch (error) {
+      this.logError("Error setting up notification listener:", error);
+    }
+  }
+
+  async handleDatabaseChange(tableName) {
+    // Find all subscriptions for this table
+    for (const [subId, sub] of this.subscriptions.entries()) {
+      if (sub.tableName === tableName) {
+        await this.refreshSubscriptionData(subId, sub);
+      }
+    }
+  }
+
   setupWebSocket() {
     this.log("Setting up WebSocket server");
 
@@ -36,7 +67,6 @@ class WebSocketHandler {
 
       this.log(`New client connected: ${clientId}`);
 
-      // Set up ping-pong for connection health check
       ws.isAlive = true;
       ws.on("pong", () => {
         ws.isAlive = true;
@@ -61,14 +91,12 @@ class WebSocketHandler {
         this.handleClientDisconnect(ws, clientId);
       });
 
-      // Send initial connection success message
       this.sendMessage(ws, {
         type: "connection_established",
         clientId,
       });
     });
 
-    // Setup connection health monitoring
     this.setupHealthCheck();
   }
 
@@ -79,7 +107,6 @@ class WebSocketHandler {
           this.log("Terminating inactive connection");
           return ws.terminate();
         }
-
         ws.isAlive = false;
         ws.ping(() => {});
       });
@@ -94,12 +121,14 @@ class WebSocketHandler {
     this.log(`Client disconnected: ${clientId}`);
     const subscriptions = this.clientSubscriptions.get(ws) || new Set();
 
-    // Clean up all subscriptions for this client
     for (const subId of subscriptions) {
       const sub = this.subscriptions.get(subId);
       if (sub) {
-        clearInterval(sub.intervalId);
+        if (sub.client) {
+          sub.client.release();
+        }
         this.subscriptions.delete(subId);
+        this.dataCache.delete(subId);
         this.log(`Cleaned up subscription: ${subId}`);
       }
     }
@@ -131,6 +160,7 @@ class WebSocketHandler {
 
   async handleSubscribe(ws, clientId, message) {
     const subscriptionId = message.subscriptionId || uuidv4();
+    let dedicatedClient = null;
 
     try {
       this.log(`Processing subscription request:`, message.data);
@@ -144,7 +174,7 @@ class WebSocketHandler {
         orderBy,
         limit,
         offset,
-        interval = 1000,
+        interval = 5000,
       } = message.data;
 
       if (!tableName) {
@@ -163,44 +193,35 @@ class WebSocketHandler {
       });
 
       this.log(`Built query for subscription ${subscriptionId}:`, query);
-
       const parameters = this.extractParameters(filters, having);
 
-      // Set up polling interval
-      const intervalId = setInterval(async () => {
-        try {
-          const results = await this.clientSqlHelper.executeRead(
-            query,
-            parameters
-          );
+      // Get a dedicated client for this subscription
+      dedicatedClient = await this.pool.connect();
 
-          if (ws.readyState === WebSocket.OPEN) {
-            this.sendMessage(ws, {
-              type: "data",
-              subscriptionId,
-              data: results,
-            });
-          }
-        } catch (error) {
-          this.logError(
-            `Subscription query error for ${subscriptionId}:`,
-            error
-          );
-          this.sendError(ws, error.message, subscriptionId);
-        }
-      }, interval);
+      // Set up change notification trigger for this table if not exists
+      await this.setupTableTrigger(dedicatedClient, tableName);
 
-      // Store subscription details
-      this.subscriptions.set(subscriptionId, {
-        intervalId,
+      // Initial data fetch and send
+      const initialResults = await this.executeQueryWithRetry(
+        dedicatedClient,
+        query,
+        parameters
+      );
+
+      const subscriptionData = {
+        intervalId: null,
         query,
         parameters,
         clientId,
         tableName,
-      });
+        client: dedicatedClient,
+        ws,
+      };
 
-      // Add to client's subscriptions
+      // Store subscription details
+      this.subscriptions.set(subscriptionId, subscriptionData);
       this.clientSubscriptions.get(ws).add(subscriptionId);
+      this.dataCache.set(subscriptionId, JSON.stringify(initialResults));
 
       // Confirm subscription
       this.sendMessage(ws, {
@@ -210,28 +231,105 @@ class WebSocketHandler {
       });
 
       // Send initial data
-      const initialResults = await this.clientSqlHelper.executeRead(
-        query,
-        parameters
-      );
       this.sendMessage(ws, {
         type: "data",
         subscriptionId,
         data: initialResults,
       });
 
+      // Set up polling interval as backup
+      subscriptionData.intervalId = setInterval(async () => {
+        await this.refreshSubscriptionData(subscriptionId, subscriptionData);
+      }, interval);
+
       this.log(`Subscription ${subscriptionId} setup completed`);
     } catch (error) {
       this.logError(`Subscription setup failed for ${subscriptionId}:`, error);
+      if (dedicatedClient) {
+        dedicatedClient.release();
+      }
       this.sendError(ws, error.message);
 
-      // Clean up any partial subscription
       if (this.subscriptions.has(subscriptionId)) {
         const subscription = this.subscriptions.get(subscriptionId);
         clearInterval(subscription.intervalId);
         this.subscriptions.delete(subscriptionId);
         this.clientSubscriptions.get(ws)?.delete(subscriptionId);
       }
+    }
+  }
+
+  async refreshSubscriptionData(subscriptionId, subscription) {
+    const { ws, client, query, parameters } = subscription;
+
+    try {
+      const results = await this.executeQueryWithRetry(
+        client,
+        query,
+        parameters
+      );
+      const newDataString = JSON.stringify(results);
+
+      // Only send if data has changed
+      if (this.dataCache.get(subscriptionId) !== newDataString) {
+        this.dataCache.set(subscriptionId, newDataString);
+        if (ws.readyState === WebSocket.OPEN) {
+          this.sendMessage(ws, {
+            type: "data",
+            subscriptionId,
+            data: results,
+          });
+        }
+      }
+    } catch (error) {
+      this.logError(
+        `Refresh failed for subscription ${subscriptionId}:`,
+        error
+      );
+      this.sendError(ws, error.message, subscriptionId);
+    }
+  }
+
+  async executeQueryWithRetry(client, query, parameters, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await client.query(query, parameters);
+        return result.rows;
+      } catch (error) {
+        if (attempt === maxRetries) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+
+  async setupTableTrigger(client, tableName) {
+    const triggerName = `${tableName}_notify_trigger`;
+    const functionName = `${tableName}_notify_function`;
+
+    try {
+      // Create notification function if not exists
+      await client.query(`
+        CREATE OR REPLACE FUNCTION ${functionName}() RETURNS TRIGGER AS $$
+        BEGIN
+          PERFORM pg_notify('table_changes', json_build_object(
+            'table', TG_TABLE_NAME,
+            'operation', TG_OP
+          )::text);
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+      `);
+
+      // Create trigger if not exists
+      await client.query(`
+        DROP TRIGGER IF EXISTS ${triggerName} ON ${tableName};
+        CREATE TRIGGER ${triggerName}
+        AFTER INSERT OR UPDATE OR DELETE ON ${tableName}
+        FOR EACH ROW EXECUTE FUNCTION ${functionName}();
+      `);
+    } catch (error) {
+      this.logError(`Error setting up trigger for ${tableName}:`, error);
+      throw error;
     }
   }
 
@@ -242,8 +340,12 @@ class WebSocketHandler {
       const subscription = this.subscriptions.get(subscriptionId);
       if (subscription) {
         clearInterval(subscription.intervalId);
+        if (subscription.client) {
+          subscription.client.release();
+        }
         this.subscriptions.delete(subscriptionId);
         this.clientSubscriptions.get(ws)?.delete(subscriptionId);
+        this.dataCache.delete(subscriptionId);
 
         this.sendMessage(ws, {
           type: "unsubscribed",
@@ -251,8 +353,6 @@ class WebSocketHandler {
         });
 
         this.log(`Successfully unsubscribed: ${subscriptionId}`);
-      } else {
-        this.log(`No subscription found for ID: ${subscriptionId}`);
       }
     } catch (error) {
       this.logError(`Unsubscribe failed for ${subscriptionId}:`, error);
@@ -282,8 +382,6 @@ class WebSocketHandler {
     limit,
     offset,
   }) {
-    this.log("Building query for table:", tableName);
-
     return this.clientSqlHelper._buildQueryWithModifiers({
       tableName,
       columns,
@@ -298,28 +396,15 @@ class WebSocketHandler {
 
   extractParameters(filters, having) {
     const params = [];
-
-    if (filters) {
-      this.log("Extracting filter parameters");
-      params.push(...filters.flatMap((f) => f.getParameters()));
-    }
-
-    if (having) {
-      this.log("Extracting having parameters");
-      params.push(...having.flatMap((h) => h.getParameters()));
-    }
-
-    this.log("Extracted parameters:", params);
+    if (filters) params.push(...filters.flatMap((f) => f.getParameters()));
+    if (having) params.push(...having.flatMap((h) => h.getParameters()));
     return params;
   }
 
   sendMessage(ws, message) {
     if (ws.readyState === WebSocket.OPEN) {
       const messageString = JSON.stringify(message);
-      this.log("Sending message:", message);
       ws.send(messageString);
-    } else {
-      this.log("Cannot send message - WebSocket not open");
     }
   }
 
@@ -335,13 +420,13 @@ class WebSocketHandler {
   async gracefulShutdown() {
     this.log("Starting graceful shutdown");
 
-    // Clear all intervals
-    for (const [subscriptionId, subscription] of this.subscriptions) {
+    for (const [_, subscription] of this.subscriptions) {
       clearInterval(subscription.intervalId);
-      this.log(`Cleared interval for subscription: ${subscriptionId}`);
+      if (subscription.client) {
+        subscription.client.release();
+      }
     }
 
-    // Close all client connections
     this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         client.close(1000, "Server shutting down");
