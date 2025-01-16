@@ -11,7 +11,7 @@ const db = require("./db/connection.js");
 const { DatabaseHelper } = require("./Helpers/databaseHelper");
 const { TableHelper } = require("./Helpers/leadsTableHelper");
 const leadsRoutes = require("./routes/leadsSearch.routes");
-const pg = require('pg');  // Add this at the top with other imports
+const pg = require("pg"); // Add this at the top with other imports
 
 const app = express();
 // Add this with other global variables
@@ -21,19 +21,19 @@ let notificationListener;
 async function setupNotificationListener(pool) {
   notificationListener = new pg.Client(pool.options);
   await notificationListener.connect();
-  
-  notificationListener.on('notification', async (msg) => {
+
+  notificationListener.on("notification", async (msg) => {
     try {
       const payload = JSON.parse(msg.payload);
       if (wsHandler) {
         await wsHandler.handleDatabaseChange(payload.table);
       }
     } catch (e) {
-      console.error('Error handling database notification:', e);
+      console.error("Error handling database notification:", e);
     }
   });
-  
-  await notificationListener.query('LISTEN table_changes');
+
+  await notificationListener.query("LISTEN table_changes");
   return notificationListener;
 }
 
@@ -296,24 +296,51 @@ async function initializeSqlComponents() {
     // Initialize SQL executor with connection test
     const SqlQueryExecutor = require("./Helpers/sqlQueryExecutor");
     sqlExecutor = new SqlQueryExecutor(db.pool);
+
+    // Test database connection
     const client = await db.pool.connect();
     try {
-      await client.query("SELECT NOW()");
-      console.log("Database connection test successful");
+      const result = await client.query(
+        "SELECT NOW() as current_time, version() as pg_version"
+      );
+      console.log("Database connection test successful:", {
+        currentTime: result.rows[0].current_time,
+        postgresVersion: result.rows[0].pg_version,
+      });
     } finally {
       client.release();
     }
     console.log("SQL executor initialized and tested");
-    const ClientSqlHelper = require("./Helpers/clientSqlHelper");
+
     // Initialize client SQL helper
+    const ClientSqlHelper = require("./Helpers/clientSqlHelper");
     clientSqlHelper = new ClientSqlHelper(sqlExecutor);
-    console.log("Client SQL helper initialized");
+
+    // Verify SQL helper initialization
+    await clientSqlHelper.executeRead("SELECT 1");
+    console.log("Client SQL helper initialized and verified");
 
     return true;
   } catch (error) {
     console.error("Failed to initialize SQL components:", error);
+    await handleSqlInitializationError(error);
     return false;
   }
+}
+
+// Helper function for SQL initialization errors
+async function handleSqlInitializationError(error) {
+  if (error.code === "ECONNREFUSED") {
+    console.error(
+      "Could not connect to database. Please check if database server is running."
+    );
+    return;
+  }
+  if (error.code === "28P01") {
+    console.error("Invalid database credentials");
+    return;
+  }
+  console.error("Unhandled SQL initialization error:", error);
 }
 
 // Initialize WebSocket
@@ -321,26 +348,29 @@ async function initializeWebSocket(server) {
   try {
     console.log("Initializing WebSocket handler...");
 
-    // Create notification listener
-    const notificationListener = await setupNotificationListener(db.pool);
-
-    // Initialize WebSocket handler with PostgreSQL pool and notification listener
+    // Initialize WebSocket handler with PostgreSQL pool
     wsHandler = new WebSocketHandler(server, clientSqlHelper, db.pool);
 
-    // Setup trigger for all tables
-    const tables = await clientSqlHelper.getAllTables();
-    for (const table of tables) {
-      await wsHandler.setupTableTrigger(table.name);
-    }
+    // Setup notification listener for real-time updates
+    await wsHandler.setupNotificationListener();
+
+    // Add error handling for the WebSocket server
+    wsHandler.wss.on("error", (error) => {
+      console.error("WebSocket server error:", error);
+    });
 
     console.log("WebSocket handler initialized successfully");
     return true;
   } catch (error) {
     console.error("Failed to initialize WebSocket handler:", error);
+    if (error.code === "EADDRINUSE") {
+      console.error("WebSocket port is already in use");
+    }
     return false;
   }
 }
 
+// 2. Database Initialization
 async function initializeDatabase() {
   try {
     console.log("Starting database initialization...");
@@ -348,38 +378,79 @@ async function initializeDatabase() {
     const dbHelper = new DatabaseHelper(db.pool);
     const tableHelper = new TableHelper(db.pool);
 
+    // Check and create database if needed
     const dbExists = await dbHelper.checkDatabaseExists("cladbe");
     if (!dbExists) {
       console.log("Creating database 'cladbe'...");
       await dbHelper.createDatabase("cladbe");
     }
 
-    // Setup notification function if not exists
+    // Create enhanced notification function
     await db.pool.query(`
       CREATE OR REPLACE FUNCTION notify_table_change() RETURNS TRIGGER AS $$
+      DECLARE
+        payload jsonb;
       BEGIN
-        PERFORM pg_notify(
-          'table_changes',
-          json_build_object(
-            'table', TG_TABLE_NAME,
-            'operation', TG_OP,
-            'time', CURRENT_TIMESTAMP
-          )::text
+        -- Build payload based on operation type
+        payload = json_build_object(
+          'table', TG_TABLE_NAME,
+          'operation', TG_OP,
+          'schema', TG_TABLE_SCHEMA,
+          'old_data', CASE 
+            WHEN TG_OP = 'DELETE' THEN row_to_json(OLD)
+            WHEN TG_OP = 'UPDATE' THEN row_to_json(OLD)
+            ELSE NULL 
+          END,
+          'new_data', CASE 
+            WHEN TG_OP IN ('INSERT', 'UPDATE') THEN row_to_json(NEW)
+            ELSE NULL 
+          END,
+          'timestamp', CURRENT_TIMESTAMP,
+          'transaction_id', txid_current()
         );
+
+        -- Send notification
+        PERFORM pg_notify('table_changes', payload::text);
+        
+        -- Handle different operations
+        IF TG_OP = 'DELETE' THEN
+          RETURN OLD;
+        END IF;
+        
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
     `);
 
+    // Create tables and setup initial structures
     console.log("Setting up tables and indexes...");
     await tableHelper.createLeadsSearchTable();
+
+    // Verify database setup
+    const tables = await clientSqlHelper.getAllTables();
+    console.log(`Initialized with ${tables.length} tables`);
+
     console.log("Database initialization completed successfully");
     return true;
   } catch (error) {
     console.error("Database initialization failed:", error);
     console.error("Stack trace:", error.stack);
+    await handleDatabaseInitializationError(error);
     return false;
   }
+}
+
+// Helper function for database initialization errors
+async function handleDatabaseInitializationError(error) {
+  if (error.code === "42P04") {
+    console.log("Database already exists, continuing...");
+    return;
+  }
+  if (error.code === "3D000") {
+    console.error("Database does not exist and cannot be created");
+    return;
+  }
+  console.error("Unhandled database initialization error:", error);
 }
 
 // Error handling middleware
@@ -462,38 +533,59 @@ async function startServer() {
 }
 
 async function gracefulShutdown(signal) {
-  console.log(`${signal || "Shutdown"} signal received. Starting graceful shutdown...`);
+  console.log(
+    `${signal || "Shutdown"} signal received. Starting graceful shutdown...`
+  );
 
-  const shutdownTimeout = setTimeout(() => {
-    console.error("Could not close connections in time, forcefully shutting down");
+  let shutdownTimeout = setTimeout(() => {
+    console.error(
+      "Could not close connections in time, forcefully shutting down"
+    );
     process.exit(1);
   }, 30000);
 
   try {
+    // Track shutdown progress
+    const shutdown = {
+      websocket: false,
+      database: false,
+    };
+
     // Close WebSocket connections gracefully
     if (wsHandler) {
       console.log("Closing WebSocket connections...");
-      await wsHandler.gracefulShutdown();
-      console.log("WebSocket server closed successfully");
-    }
-
-    // Close notification listener if it exists
-    if (notificationListener) {
-      console.log("Closing notification listener...");
-      await notificationListener.end();
-      console.log("Notification listener closed successfully");
+      try {
+        await wsHandler.gracefulShutdown();
+        shutdown.websocket = true;
+        console.log("WebSocket server closed successfully");
+      } catch (error) {
+        console.error("Error closing WebSocket server:", error);
+      }
     }
 
     // Close database connections
     if (db.pool) {
       console.log("Closing database connections...");
-      await db.pool.end();
-      console.log("Database connections closed successfully");
+      try {
+        await db.pool.end();
+        shutdown.database = true;
+        console.log("Database connections closed successfully");
+      } catch (error) {
+        console.error("Error closing database pool:", error);
+      }
     }
 
     clearTimeout(shutdownTimeout);
-    console.log("Graceful shutdown completed");
-    process.exit(0);
+
+    // Final shutdown status
+    console.log("Shutdown status:", shutdown);
+    if (shutdown.websocket && shutdown.database) {
+      console.log("Graceful shutdown completed successfully");
+      process.exit(0);
+    } else {
+      console.log("Partial shutdown completed with errors");
+      process.exit(1);
+    }
   } catch (error) {
     console.error("Error during shutdown:", error);
     process.exit(1);
@@ -518,4 +610,11 @@ const PORT = process.env.PORT || 3000;
 
 // Start the server and export for testing
 const server = startServer();
-module.exports = { app, server };
+module.exports = {
+  app,
+  server,
+  initializeWebSocket,
+  initializeDatabase,
+  initializeSqlComponents,
+  gracefulShutdown,
+};
