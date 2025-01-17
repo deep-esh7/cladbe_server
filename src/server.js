@@ -150,7 +150,9 @@ app.post("/api/sql/execute", async (req, res) => {
     });
 
     // Extract table name from the query
-    const tableNameMatch = query.match(/(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+["']?(\w+)["']?/i);
+    const tableNameMatch = query.match(
+      /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+["']?(\w+)["']?/i
+    );
     if (tableNameMatch) {
       const tableName = tableNameMatch[1];
       await clientSqlHelper.ensureTableExists(tableName, tableDefinition);
@@ -167,12 +169,12 @@ app.post("/api/sql/execute", async (req, res) => {
 // Optional: Add table definition validation middleware
 function validateTableDefinition(tableDefinition) {
   if (!tableDefinition || !Array.isArray(tableDefinition.columns)) {
-    throw new Error('Invalid table definition structure');
+    throw new Error("Invalid table definition structure");
   }
 
   for (const column of tableDefinition.columns) {
     if (!column.name || !column.type) {
-      throw new Error('Invalid column definition');
+      throw new Error("Invalid column definition");
     }
   }
 }

@@ -749,25 +749,30 @@ class ClientSqlHelper {
   }
 
   // Add this method to ClientSqlHelper class
-async ensureTableExists(tableName, tableDefinition) {
-  try {
-    this.log(`Checking if table exists: ${tableName}`);
-    const exists = await this.tableExists(tableName);
-    
-    if (!exists && tableDefinition) {
-      this.log(`Table ${tableName} does not exist, creating with definition:`, tableDefinition);
-      await this.createTable(tableName, tableDefinition.columns);
-      return true;
-    } else if (!exists) {
-      throw new Error(`Table ${tableName} does not exist and no definition provided`);
+  async ensureTableExists(tableName, tableDefinition) {
+    try {
+      this.log(`Checking if table exists: ${tableName}`);
+      const exists = await this.tableExists(tableName);
+
+      if (!exists && tableDefinition) {
+        this.log(
+          `Table ${tableName} does not exist, creating with definition:`,
+          tableDefinition
+        );
+        await this.createTable(tableName, tableDefinition.columns);
+        return true;
+      } else if (!exists) {
+        throw new Error(
+          `Table ${tableName} does not exist and no definition provided`
+        );
+      }
+
+      return exists;
+    } catch (error) {
+      this.logError(`Error ensuring table exists: ${tableName}`, error);
+      throw error;
     }
-    
-    return exists;
-  } catch (error) {
-    this.logError(`Error ensuring table exists: ${tableName}`, error);
-    throw error;
   }
-}
 
   async vacuum(tableName, analyze = true) {
     const operation = "VACUUM";
