@@ -749,6 +749,7 @@ class ClientSqlHelper {
   }
 
   // Add this method to ClientSqlHelper class
+  // Current server implementation
   async ensureTableExists(tableName, tableDefinition) {
     try {
       this.log(`Checking if table exists: ${tableName}`);
@@ -759,6 +760,7 @@ class ClientSqlHelper {
           `Table ${tableName} does not exist, creating with definition:`,
           tableDefinition
         );
+        // Problem: tableDefinition.columns is being passed directly without parsing
         await this.createTable(tableName, tableDefinition.columns);
         return true;
       } else if (!exists) {
@@ -773,7 +775,6 @@ class ClientSqlHelper {
       throw error;
     }
   }
-
   async vacuum(tableName, analyze = true) {
     const operation = "VACUUM";
     try {
