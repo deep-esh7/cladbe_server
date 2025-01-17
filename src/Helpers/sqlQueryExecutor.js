@@ -70,6 +70,37 @@ class SqlQueryExecutor {
       );
     }
   }
+  // Update error handler to provide more detailed information
+  async handleError(queryId, error, query, params, startTime) {
+    const duration = Date.now() - startTime;
+    this._metrics.errors++;
+
+    // Enhanced error logging
+    this.logError(`Error in query [${queryId}]:`, {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint,
+      position: error.position,
+      duration,
+      query,
+      params,
+      stack: error.stack,
+    });
+
+    this._queryHistory.set(queryId, {
+      query,
+      params,
+      error: {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+      },
+      duration,
+      timestamp: new Date().toISOString(),
+      success: false,
+    });
+  }
 
   async executeQuery(query, params = [], options = {}) {
     const queryId = Math.random().toString(36).substring(7);
@@ -84,15 +115,19 @@ class SqlQueryExecutor {
       client = await this.acquireConnection();
       this.log(`Connection acquired for query [${queryId}]`);
 
-      // Validate and sanitize parameters
-      this.validateQueryAndParams(query, params);
-      const sanitizedParams = this.sanitizeParams(params);
+      // Fix: Pre-process the query and parameters
+      const { processedQuery, processedParams } = this._preprocessQuery(
+        query,
+        params
+      );
+      this.log("Processed query:", processedQuery);
+      this.log("Processed parameters:", processedParams);
 
       // Execute query with timeout
       const result = await this.executeWithTimeout(
         client,
-        query,
-        sanitizedParams,
+        processedQuery,
+        processedParams,
         options.timeout || 30000
       );
 
@@ -113,43 +148,56 @@ class SqlQueryExecutor {
     }
   }
 
+  _preprocessQuery(query, params) {
+    // Remove any unnecessary quotes around parameter placeholders
+    let processedQuery = query.replace(/'(\$\d+)'/g, "$1");
+
+    // Ensure parameter placeholders are properly formatted
+    let paramCount = 1;
+    processedQuery = processedQuery.replace(/\$\?/g, () => `$${paramCount++}`);
+
+    // Clean up whitespace and ensure consistent formatting
+    processedQuery = processedQuery
+      .replace(/\s+/g, " ")
+      .replace(/\( /g, "(")
+      .replace(/ \)/g, ")")
+      .trim();
+
+    // Validate parameter count
+    const placeholders = processedQuery.match(/\$\d+/g) || [];
+    if (placeholders.length !== params.length) {
+      throw new Error(
+        `Parameter count mismatch: ${placeholders.length} placeholders but ${params.length} parameters provided`
+      );
+    }
+
+    // Validate parameter values
+    const processedParams = params.map((param) =>
+      param === undefined ? null : param
+    );
+
+    return { processedQuery, processedParams };
+  }
+
+  // Update validation to handle named parameters if needed
   validateQueryAndParams(query, params = []) {
     this.log("Validating query and parameters");
-    const paramMatches = query.match(/\$\d+/g) || [];
-    const paramCount = paramMatches.length;
+    // Fix: Update regex to handle both $1 and ? style parameters
+    const paramMatches = (query.match(/\$\d+|\?/g) || []).length;
 
-    if (paramCount !== params.length) {
+    if (paramMatches !== params.length) {
       this.logError("Parameter count mismatch", {
-        expected: paramCount,
+        expected: paramMatches,
         received: params.length,
       });
       throw new DatabaseError(
-        `Parameter count mismatch. Expected ${paramCount}, got ${params.length}`,
+        `Parameter count mismatch. Expected ${paramMatches}, got ${params.length}`,
         "PARAM_MISMATCH",
         query,
         params
       );
     }
 
-    // Validate parameter numbering
-    const paramNumbers = paramMatches
-      .map((p) => parseInt(p.substring(1)))
-      .sort((a, b) => a - b);
-
-    for (let i = 0; i < paramNumbers.length; i++) {
-      if (paramNumbers[i] !== i + 1) {
-        this.logError("Invalid parameter sequence", {
-          expected: i + 1,
-          received: paramNumbers[i],
-        });
-        throw new DatabaseError(
-          "Invalid parameter numbering. Must be sequential",
-          "PARAM_SEQUENCE",
-          query,
-          params
-        );
-      }
-    }
     this.log("Query and parameters validated successfully");
   }
 

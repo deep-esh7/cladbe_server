@@ -327,13 +327,14 @@ class ClientSqlHelper {
       tableName = this.sanitizeTableName(tableName);
       this.log("Checking if table exists:", tableName);
 
+      // Fix: Remove single quotes around parameter placeholder and use proper parameter binding
       const query = `
         SELECT EXISTS (
           SELECT 1 
           FROM information_schema.tables 
           WHERE table_schema = 'public' 
           AND table_name = $1
-        );
+        )
       `;
 
       const result = await this.executeRead(query, [tableName]);
@@ -773,7 +774,7 @@ class ClientSqlHelper {
     const operation = "GET_ALL_TABLES";
     try {
       this.log("Getting all tables" + (includeStats ? " with statistics" : ""));
-  
+
       const query = includeStats
         ? `
         SELECT 
@@ -800,9 +801,9 @@ class ClientSqlHelper {
         AND table_type = 'BASE TABLE'
         ORDER BY table_name;
         `;
-  
+
       const tables = await this.executeRead(query);
-      
+
       this.log(`Found ${tables.length} tables`);
       return tables;
     } catch (error) {
