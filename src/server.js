@@ -137,16 +137,24 @@ app.post("/api/sql/query", async (req, res) => {
   }
 });
 
+// Modify the execute route in express app
 app.post("/api/sql/execute", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    const { query, parameters } = req.body;
+    const { query, parameters, tableDefinition } = req.body;
     console.log("Executing SQL command:", {
       query,
       parameters,
       timestamp: new Date().toISOString(),
     });
+
+    // Extract table name from the query
+    const tableNameMatch = query.match(/(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+["']?(\w+)["']?/i);
+    if (tableNameMatch) {
+      const tableName = tableNameMatch[1];
+      await clientSqlHelper.ensureTableExists(tableName, tableDefinition);
+    }
 
     const result = await clientSqlHelper.executeWrite(query, parameters);
     res.json({ success: true, data: result });
@@ -155,6 +163,19 @@ app.post("/api/sql/execute", async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// Optional: Add table definition validation middleware
+function validateTableDefinition(tableDefinition) {
+  if (!tableDefinition || !Array.isArray(tableDefinition.columns)) {
+    throw new Error('Invalid table definition structure');
+  }
+
+  for (const column of tableDefinition.columns) {
+    if (!column.name || !column.type) {
+      throw new Error('Invalid column definition');
+    }
+  }
+}
 
 app.get("/api/sql/table/:tableName/exists", async (req, res) => {
   try {
