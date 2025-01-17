@@ -749,7 +749,7 @@ class ClientSqlHelper {
   }
 
   // Add this method to ClientSqlHelper class
-  // Current server implementation
+  // Updated ensureTableExists method
   async ensureTableExists(tableName, tableDefinition) {
     try {
       this.log(`Checking if table exists: ${tableName}`);
@@ -760,8 +760,15 @@ class ClientSqlHelper {
           `Table ${tableName} does not exist, creating with definition:`,
           tableDefinition
         );
-        // Problem: tableDefinition.columns is being passed directly without parsing
-        await this.createTable(tableName, tableDefinition.columns);
+
+        // Parse the table definition and create the CREATE TABLE query
+        const columnDefinitions = parseTableDefinition(tableDefinition);
+        const query = `CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefinitions})`;
+
+        this.log(`Creating table with query:`, query);
+        await this.executeWrite(query);
+
+        this.log(`Table ${tableName} created successfully`);
         return true;
       } else if (!exists) {
         throw new Error(
@@ -774,6 +781,70 @@ class ClientSqlHelper {
       this.logError(`Error ensuring table exists: ${tableName}`, error);
       throw error;
     }
+  }
+
+  parseTableDefinition(tableDefinition) {
+    if (!tableDefinition || !tableDefinition.columns) {
+      throw new Error("Invalid table definition structure");
+    }
+
+    const columns = tableDefinition.columns.map((column) => {
+      if (!column.name || !column.dataType) {
+        throw new Error("Invalid column definition");
+      }
+
+      let columnDef = `${column.name} ${column.dataType}`;
+
+      // Handle length/precision/scale
+      if (column.length) {
+        if (["numeric", "decimal"].includes(column.dataType)) {
+          columnDef += column.scale
+            ? `(${column.length}, ${column.scale})`
+            : `(${column.length})`;
+        } else if (["varchar", "char"].includes(column.dataType)) {
+          columnDef += `(${column.length})`;
+        }
+      }
+
+      // Handle constraints
+      if (column.constraints) {
+        const constraintStr = column.constraints
+          .map((constraint) => {
+            switch (constraint) {
+              case "primaryKey":
+                return "PRIMARY KEY";
+              case "notNull":
+                return "NOT NULL";
+              case "unique":
+                return "UNIQUE";
+              case "default_":
+                return column.defaultValue
+                  ? `DEFAULT ${column.defaultValue}`
+                  : "";
+              default:
+                return "";
+            }
+          })
+          .filter((c) => c)
+          .join(" ");
+
+        if (constraintStr) {
+          columnDef += ` ${constraintStr}`;
+        }
+      }
+
+      // Handle foreign keys
+      if (column.foreignKey) {
+        columnDef += ` REFERENCES ${column.foreignKey.tableName}(${column.foreignKey.columnName})`;
+        if (column.foreignKey.onDelete) {
+          columnDef += ` ON DELETE ${column.foreignKey.onDelete}`;
+        }
+      }
+
+      return columnDef;
+    });
+
+    return columns.join(", ");
   }
   async vacuum(tableName, analyze = true) {
     const operation = "VACUUM";
