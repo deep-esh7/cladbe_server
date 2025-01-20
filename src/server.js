@@ -1,5 +1,5 @@
 // Required imports
-const admin = require("./admin");
+const admin = require("../src/test/admin.js");
 const moment = require("moment-timezone");
 const { CreateCallCollection } = require("./models/callCollection");
 const { Lead, LeadPersonalDetails } = require("./models/lead_model");
