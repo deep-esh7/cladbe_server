@@ -461,7 +461,7 @@ class ClientSqlHelper {
   async tableExists(tableName) {
     const operation = "TABLE_EXISTS";
     try {
-      tableName = this.sanitizeTableName(tableName);
+      // Don't sanitize the tableName here as it may change the case
       this.log("Checking if table exists:", tableName);
 
       const query = `
@@ -473,7 +473,10 @@ class ClientSqlHelper {
         )
       `;
 
-      const result = await this.executeRead(query, [tableName]);
+      // Use the exact tableName for the check
+      const result = await this.executeRead(query, [
+        tableName.replace(/['"]/g, ""),
+      ]);
       const exists = result[0]?.exists ?? false;
 
       this.log(`Table ${tableName} exists:`, exists);
@@ -489,7 +492,6 @@ class ClientSqlHelper {
       );
     }
   }
-
   async getTableColumns(tableName) {
     const operation = "GET_COLUMNS";
     try {
@@ -897,7 +899,7 @@ class ClientSqlHelper {
       const tableName = tableMatch[1];
       this.log(`Found table name: ${tableName}`);
 
-      // Check if table exists
+      // First check if table exists
       const exists = await this.tableExists(tableName);
       if (exists) {
         this.log(`Table ${tableName} already exists`);
@@ -943,21 +945,19 @@ class ClientSqlHelper {
 
       this.log("Executing create table query:", createTableQuery);
 
-      // Begin a transaction for table creation and indexing
-      await this.executeWrite("BEGIN");
-
       try {
-        // Create the table first
+        // Create the table
         await this.sqlExecutor.executeQuery(createTableQuery);
         this.log(`Table ${tableName} created successfully`);
 
-        // Verify table exists before creating indexes
+        // Ensure table exists before creating indexes
+        await new Promise((resolve) => setTimeout(resolve, 500)); // Small delay to ensure table is registered
         const tableCreated = await this.tableExists(tableName);
         if (!tableCreated) {
-          throw new Error("Table creation failed verification");
+          throw new Error(`Table ${tableName} was not created properly`);
         }
 
-        // Create indexes after verifying table exists
+        // Create indexes after confirming table exists
         const indexableColumns = columnDefinitions
           .filter(
             (col) =>
@@ -968,31 +968,31 @@ class ClientSqlHelper {
           .map((col) => col.name);
 
         for (const column of indexableColumns) {
-          const indexName = `idx_${tableName}_${column.toLowerCase()}`;
-          const indexQuery = `
-            CREATE UNIQUE INDEX IF NOT EXISTS ${indexName} 
-            ON "${tableName}" ("${column}")
-          `;
-          await this.sqlExecutor.executeQuery(indexQuery);
-          this.log(`Created index on ${tableName}.${column}`);
+          try {
+            const indexName = `idx_${tableName.toLowerCase()}_${column.toLowerCase()}`;
+            const indexQuery = `
+              CREATE INDEX IF NOT EXISTS ${indexName} 
+              ON "${tableName}" ("${column}")
+            `;
+            await this.sqlExecutor.executeQuery(indexQuery);
+            this.log(`Created index ${indexName} on ${tableName}.${column}`);
+          } catch (indexError) {
+            this.logError(`Failed to create index on ${column}:`, indexError);
+            // Continue even if index creation fails
+          }
         }
 
-        // If all operations succeed, commit the transaction
-        await this.executeWrite("COMMIT");
         this.log("Table and indexes created successfully");
+        return true;
       } catch (error) {
-        // If any operation fails, rollback all changes
-        await this.executeWrite("ROLLBACK");
+        this.logError("Error during table creation:", error);
         throw error;
       }
-
-      return true;
     } catch (error) {
       this.logError("Error in ensureTableExists:", error);
       throw error;
     }
   }
-
   // Also modify the executeWrite method to use ensureTableExists:
 
   // Modified executeWrite method
