@@ -886,6 +886,108 @@ class ClientSqlHelper {
     }
   }
 
+  async ensureTableExists(query, params) {
+    try {
+      // Extract table name from the INSERT query
+      const tableMatch = query.match(/INSERT INTO ["']?([^\s"']+)["']?/i);
+      if (!tableMatch) {
+        throw new Error("Unable to parse table name from query");
+      }
+
+      const tableName = tableMatch[1].replace(/['"]/g, "");
+      this.log(`Checking if table ${tableName} exists`);
+
+      const exists = await this.tableExists(tableName);
+
+      if (!exists) {
+        this.log(`Table ${tableName} does not exist, creating...`);
+        const { columnDefinitions } = await this.inferTableStructure(
+          query,
+          params
+        );
+
+        const createTableQuery = `
+          CREATE TABLE IF NOT EXISTS ${tableName} (
+            ${columnDefinitions
+              .map(
+                (col) =>
+                  `${col.name} ${col.type}${
+                    col.constraints ? " " + col.constraints : ""
+                  }`
+              )
+              .join(",\n")}
+          )
+        `;
+
+        await this.executeWrite(createTableQuery);
+        this.log(`Table ${tableName} created successfully`);
+
+        // Add indexes for commonly indexed columns
+        const indexableColumns = columnDefinitions
+          .filter(
+            (col) =>
+              col.name.toLowerCase().includes("email") ||
+              col.name.toLowerCase().includes("username") ||
+              col.constraints.includes("UNIQUE")
+          )
+          .map((col) => col.name);
+
+        for (const column of indexableColumns) {
+          const indexName = `idx_${tableName}_${column.toLowerCase()}`;
+          await this.createIndex({
+            name: indexName,
+            tableName: tableName,
+            columns: [column],
+            unique: true,
+          });
+        }
+
+        return true;
+      }
+
+      return true;
+    } catch (error) {
+      this.logError(`Error ensuring table exists:`, error);
+      throw error;
+    }
+  }
+
+  // Also modify the executeWrite method to use ensureTableExists:
+
+  async executeWrite(query, params = []) {
+    const operation = "WRITE";
+    try {
+      this.validateQuery(query, operation);
+      this.log("Executing write operation:", { query, params });
+
+      // Check if it's an INSERT query and handle table creation if needed
+      if (query.trim().toUpperCase().startsWith("INSERT")) {
+        await this.ensureTableExists(query, params);
+      }
+
+      const convertedQuery = this.convertQueryParameters(query);
+      const result = await this.sqlExecutor.executeQuery(
+        convertedQuery,
+        params
+      );
+
+      this.log("Write operation successful:", {
+        rowCount: result?.length,
+        query: convertedQuery,
+      });
+      return result;
+    } catch (error) {
+      this.logError("Write operation failed:", error, { query, params });
+      throw new ClientSqlError(
+        "Write operation failed: " + error.message,
+        operation,
+        query,
+        params,
+        error
+      );
+    }
+  }
+
   async vacuum(tableName, analyze = true) {
     const operation = "VACUUM";
     try {
