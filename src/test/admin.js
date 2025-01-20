@@ -7,7 +7,7 @@ try {
 } catch (error) {
   console.error("Error parsing FIREBASE_CONFIG:", error);
   // Fallback to local file if environment variable is not available (for development)
-  serviceAccount = require("./cladbe_servicekey.json");
+  // serviceAccount = require("./cladbe_servicekey.json");
 }
 
 // Initialize Firebase Admin SDK
