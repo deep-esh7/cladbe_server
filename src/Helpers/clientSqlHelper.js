@@ -888,30 +888,48 @@ class ClientSqlHelper {
 
   async ensureTableExists(query, params) {
     try {
-      // Extract table name from the INSERT query
-      const tableMatch = query.match(/INSERT INTO ["']?([^\s"']+)["']?/i);
-      if (!tableMatch) {
-        throw new Error("Unable to parse table name from query");
+      // Extract table name from the query with improved regex
+      const tableMatch = query.match(/INSERT INTO\s+["']?([^"'\s]+)["']?/i);
+      if (!tableMatch || !tableMatch[1]) {
+        this.logError("Could not parse table name from query:", { query });
+        throw new Error("Could not determine table name from query: " + query);
       }
 
       const tableName = tableMatch[1].replace(/['"]/g, "");
       this.log(`Checking if table ${tableName} exists`);
 
+      // Extract column names from the query
+      const columnMatch = query.match(/\(([\s\S]*?)\)\s+VALUES/i);
+      if (!columnMatch || !columnMatch[1]) {
+        this.logError("Could not parse columns from query:", { query });
+        throw new Error("Could not determine columns from query: " + query);
+      }
+
       const exists = await this.tableExists(tableName);
 
       if (!exists) {
         this.log(`Table ${tableName} does not exist, creating...`);
-        const { columnDefinitions } = await this.inferTableStructure(
-          query,
-          params
-        );
+
+        const columns = columnMatch[1]
+          .split(",")
+          .map((col) => col.trim().replace(/['"]/g, ""));
+
+        // Map columns with their parameters
+        const columnDefinitions = columns.map((colName, index) => {
+          const value = params[index];
+          return {
+            name: colName,
+            type: this._inferColumnType(colName, value),
+            constraints: this._inferColumnConstraints(colName, value),
+          };
+        });
 
         const createTableQuery = `
           CREATE TABLE IF NOT EXISTS ${tableName} (
             ${columnDefinitions
               .map(
                 (col) =>
-                  `${col.name} ${col.type}${
+                  `"${col.name}" ${col.type}${
                     col.constraints ? " " + col.constraints : ""
                   }`
               )
@@ -919,6 +937,7 @@ class ClientSqlHelper {
           )
         `;
 
+        this.log("Creating table with query:", createTableQuery);
         await this.executeWrite(createTableQuery);
         this.log(`Table ${tableName} created successfully`);
 
@@ -934,12 +953,18 @@ class ClientSqlHelper {
 
         for (const column of indexableColumns) {
           const indexName = `idx_${tableName}_${column.toLowerCase()}`;
-          await this.createIndex({
-            name: indexName,
-            tableName: tableName,
-            columns: [column],
-            unique: true,
-          });
+          try {
+            await this.createIndex({
+              name: indexName,
+              tableName: tableName,
+              columns: [column],
+              unique: true,
+            });
+            this.log(`Created index ${indexName} on ${tableName}(${column})`);
+          } catch (error) {
+            this.logError(`Failed to create index ${indexName}:`, error);
+            // Continue even if index creation fails
+          }
         }
 
         return true;
@@ -948,20 +973,27 @@ class ClientSqlHelper {
       return true;
     } catch (error) {
       this.logError(`Error ensuring table exists:`, error);
-      throw error;
+      throw new ClientSqlError(
+        "Failed to ensure table exists: " + error.message,
+        "ENSURE_TABLE",
+        query,
+        params,
+        error
+      );
     }
   }
 
   // Also modify the executeWrite method to use ensureTableExists:
 
+  // Modified executeWrite method
   async executeWrite(query, params = []) {
     const operation = "WRITE";
     try {
       this.validateQuery(query, operation);
       this.log("Executing write operation:", { query, params });
 
-      // Check if it's an INSERT query and handle table creation if needed
-      if (query.trim().toUpperCase().startsWith("INSERT")) {
+      // Check if table needs to be created
+      if (await this.shouldCreateTable(query)) {
         await this.ensureTableExists(query, params);
       }
 
@@ -985,6 +1017,29 @@ class ClientSqlHelper {
         params,
         error
       );
+    }
+  }
+
+  async shouldCreateTable(query) {
+    try {
+      // Check if it's an INSERT query
+      if (!query.trim().toUpperCase().startsWith("INSERT")) {
+        return false;
+      }
+
+      // Extract and validate table name
+      const tableMatch = query.match(/INSERT INTO\s+["']?([^"'\s]+)["']?/i);
+      if (!tableMatch || !tableMatch[1]) {
+        return false;
+      }
+
+      const tableName = tableMatch[1].replace(/['"]/g, "");
+      const exists = await this.tableExists(tableName);
+
+      return !exists;
+    } catch (error) {
+      this.logError("Error checking if table should be created:", error);
+      return false;
     }
   }
 
