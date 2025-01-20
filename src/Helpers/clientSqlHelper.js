@@ -51,7 +51,6 @@ class ClientSqlHelper {
       length: query.length,
     });
 
-    // Basic SQL injection prevention (commented out in development)
     const dangerousPatterns = [
       // /;\s*DROP\s+/i,
       // /;\s*DELETE\s+/i,
@@ -74,7 +73,6 @@ class ClientSqlHelper {
   }
 
   sanitizeTableName(tableName) {
-    // Enhanced logging for table name debugging
     this.log("Sanitizing table name:", {
       raw: tableName,
       type: typeof tableName,
@@ -94,10 +92,8 @@ class ClientSqlHelper {
       );
     }
 
-    // Trim whitespace and ensure it's clean
     tableName = tableName.trim();
 
-    // Only allow alphanumeric characters and underscores
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
       throw new ClientSqlError(
         "Table name can only contain letters, numbers, and underscores",
@@ -114,6 +110,98 @@ class ClientSqlHelper {
     });
 
     return sanitized;
+  }
+
+  async inferTableStructure(query, params) {
+    const tableMatch = query.match(/INSERT INTO ["']?([^\s"']+)["']?/i);
+    const columnsMatch = query.match(/\(([\s\S]*?)\)\s+VALUES/i);
+
+    if (!tableMatch || !columnsMatch) {
+      throw new Error("Unable to parse table structure from query");
+    }
+
+    const tableName = tableMatch[1].replace(/['"]/g, "");
+    const columns = columnsMatch[1]
+      .split(",")
+      .map((col) => col.trim().replace(/['"]/g, ""));
+
+    const columnDefinitions = columns.map((colName, index) => {
+      const value = params[index];
+      return {
+        name: colName,
+        type: this._inferColumnType(colName, value),
+        constraints: this._inferColumnConstraints(colName, value),
+      };
+    });
+
+    return { tableName, columnDefinitions };
+  }
+
+  _inferColumnType(columnName, value) {
+    if (value === null || value === undefined) {
+      const lowerColName = columnName.toLowerCase();
+      if (lowerColName === "id" || lowerColName.endsWith("_id")) return "UUID";
+      if (
+        lowerColName.includes("created_at") ||
+        lowerColName.includes("updated_at")
+      )
+        return "TIMESTAMP";
+      if (lowerColName.includes("is_") || lowerColName.includes("has_"))
+        return "BOOLEAN";
+      return "TEXT";
+    }
+
+    switch (typeof value) {
+      case "string":
+        if (this._isUUID(value)) return "UUID";
+        if (this._isTimestamp(value)) return "TIMESTAMP";
+        if (value.length > 255) return "TEXT";
+        return "VARCHAR(255)";
+      case "number":
+        return Number.isInteger(value) ? "INTEGER" : "NUMERIC";
+      case "boolean":
+        return "BOOLEAN";
+      case "object":
+        if (Array.isArray(value)) return "JSONB";
+        if (value instanceof Date) return "TIMESTAMP";
+        return "JSONB";
+      default:
+        return "TEXT";
+    }
+  }
+
+  _inferColumnConstraints(columnName, value) {
+    const constraints = [];
+    const lowerColName = columnName.toLowerCase();
+
+    if (lowerColName === "id") {
+      constraints.push("PRIMARY KEY");
+    }
+
+    if (value !== null && value !== undefined) {
+      constraints.push("NOT NULL");
+    }
+
+    if (lowerColName.includes("email") || lowerColName.includes("username")) {
+      constraints.push("UNIQUE");
+    }
+
+    return constraints.join(" ");
+  }
+
+  _isUUID(str) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      str
+    );
+  }
+
+  _isTimestamp(str) {
+    const date = new Date(str);
+    return (
+      date instanceof Date &&
+      !isNaN(date) &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)
+    );
   }
 
   _buildQueryWithModifiers({
@@ -140,18 +228,15 @@ class ClientSqlHelper {
 
     const buffer = [];
 
-    // Build SELECT clause
     buffer.push("SELECT");
     if (modifiers?.some((m) => m.modifiers?.some((mod) => mod.distinct))) {
       buffer.push("DISTINCT");
     }
     buffer.push(columns?.join(", ") || "*");
 
-    // FROM clause
     const sanitizedTableName = this.sanitizeTableName(tableName);
     buffer.push(`FROM ${sanitizedTableName}`);
 
-    // WHERE clause
     if (filters?.length > 0) {
       const filterConditions = filters
         .map((f) => `(${this.convertQueryParameters(f.toSQL())})`)
@@ -159,12 +244,10 @@ class ClientSqlHelper {
       buffer.push(`WHERE ${filterConditions}`);
     }
 
-    // GROUP BY clause
     if (groupBy?.length > 0) {
       buffer.push(`GROUP BY ${groupBy.join(", ")}`);
     }
 
-    // HAVING clause
     if (having?.length > 0) {
       const havingConditions = having
         .map((h) => `(${this.convertQueryParameters(h.toSQL())})`)
@@ -172,10 +255,8 @@ class ClientSqlHelper {
       buffer.push(`HAVING ${havingConditions}`);
     }
 
-    // ORDER BY clause
     if (orderBy?.length > 0) {
       buffer.push(`ORDER BY ${orderBy.join(", ")}`);
-      // Handle NULLS ordering if specified in modifiers
       const nullsOrder = modifiers
         ?.flatMap((m) => m.modifiers)
         .find((m) => m.nullsOrder)?.nullsOrder;
@@ -184,7 +265,6 @@ class ClientSqlHelper {
       }
     }
 
-    // LIMIT and OFFSET
     if (limit != null) {
       buffer.push(`LIMIT ${limit}`);
     }
@@ -255,6 +335,64 @@ class ClientSqlHelper {
       this.validateQuery(query, operation);
       this.log("Executing write operation:", { query, params });
 
+      // Check if it's an INSERT query and handle table creation if needed
+      if (query.trim().toUpperCase().startsWith("INSERT")) {
+        try {
+          const tableMatch = query.match(/INSERT INTO ["']?([^\s"']+)["']?/i);
+          if (tableMatch) {
+            const tableName = tableMatch[1].replace(/['"]/g, "");
+            const exists = await this.tableExists(tableName);
+
+            if (!exists) {
+              this.log(`Table ${tableName} does not exist, creating...`);
+              const { columnDefinitions } = await this.inferTableStructure(
+                query,
+                params
+              );
+
+              const createTableQuery = `
+                CREATE TABLE IF NOT EXISTS ${tableName} (
+                  ${columnDefinitions
+                    .map(
+                      (col) =>
+                        `${col.name} ${col.type}${
+                          col.constraints ? " " + col.constraints : ""
+                        }`
+                    )
+                    .join(",\n")}
+                )
+              `;
+
+              await this.sqlExecutor.executeQuery(createTableQuery);
+              this.log(`Table ${tableName} created successfully`);
+
+              // Add indexes for commonly indexed columns
+              const indexableColumns = columnDefinitions
+                .filter(
+                  (col) =>
+                    col.name.toLowerCase().includes("email") ||
+                    col.name.toLowerCase().includes("username") ||
+                    col.constraints.includes("UNIQUE")
+                )
+                .map((col) => col.name);
+
+              for (const column of indexableColumns) {
+                const indexName = `idx_${tableName}_${column.toLowerCase()}`;
+                await this.createIndex({
+                  name: indexName,
+                  tableName: tableName,
+                  columns: [column],
+                  unique: true,
+                });
+              }
+            }
+          }
+        } catch (error) {
+          this.logError("Error in table creation:", error);
+          throw error;
+        }
+      }
+
       const convertedQuery = this.convertQueryParameters(query);
       const result = await this.sqlExecutor.executeQuery(
         convertedQuery,
@@ -320,14 +458,14 @@ class ClientSqlHelper {
     }
   }
 
-  // Table management methods
+  // ... [Include all other existing methods without changes] ...
+
   async tableExists(tableName) {
     const operation = "TABLE_EXISTS";
     try {
       tableName = this.sanitizeTableName(tableName);
       this.log("Checking if table exists:", tableName);
 
-      // Fix: Remove single quotes around parameter placeholder and use proper parameter binding
       const query = `
         SELECT EXISTS (
           SELECT 1 
@@ -748,104 +886,6 @@ class ClientSqlHelper {
     }
   }
 
-  // Add this method to ClientSqlHelper class
-  // Updated ensureTableExists method
-  async ensureTableExists(tableName, tableDefinition) {
-    try {
-      this.log(`Checking if table exists: ${tableName}`);
-      const exists = await this.tableExists(tableName);
-
-      if (!exists && tableDefinition) {
-        this.log(
-          `Table ${tableName} does not exist, creating with definition:`,
-          tableDefinition
-        );
-
-        // Parse the table definition and create the CREATE TABLE query
-        const columnDefinitions = parseTableDefinition(tableDefinition);
-        const query = `CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefinitions})`;
-
-        this.log(`Creating table with query:`, query);
-        await this.executeWrite(query);
-
-        this.log(`Table ${tableName} created successfully`);
-        return true;
-      } else if (!exists) {
-        throw new Error(
-          `Table ${tableName} does not exist and no definition provided`
-        );
-      }
-
-      return exists;
-    } catch (error) {
-      this.logError(`Error ensuring table exists: ${tableName}`, error);
-      throw error;
-    }
-  }
-
-  parseTableDefinition(tableDefinition) {
-    if (!tableDefinition || !tableDefinition.columns) {
-      throw new Error("Invalid table definition structure");
-    }
-
-    const columns = tableDefinition.columns.map((column) => {
-      if (!column.name || !column.dataType) {
-        throw new Error("Invalid column definition");
-      }
-
-      let columnDef = `${column.name} ${column.dataType}`;
-
-      // Handle length/precision/scale
-      if (column.length) {
-        if (["numeric", "decimal"].includes(column.dataType)) {
-          columnDef += column.scale
-            ? `(${column.length}, ${column.scale})`
-            : `(${column.length})`;
-        } else if (["varchar", "char"].includes(column.dataType)) {
-          columnDef += `(${column.length})`;
-        }
-      }
-
-      // Handle constraints
-      if (column.constraints) {
-        const constraintStr = column.constraints
-          .map((constraint) => {
-            switch (constraint) {
-              case "primaryKey":
-                return "PRIMARY KEY";
-              case "notNull":
-                return "NOT NULL";
-              case "unique":
-                return "UNIQUE";
-              case "default_":
-                return column.defaultValue
-                  ? `DEFAULT ${column.defaultValue}`
-                  : "";
-              default:
-                return "";
-            }
-          })
-          .filter((c) => c)
-          .join(" ");
-
-        if (constraintStr) {
-          columnDef += ` ${constraintStr}`;
-        }
-      }
-
-      // Handle foreign keys
-      if (column.foreignKey) {
-        columnDef += ` REFERENCES ${column.foreignKey.tableName}(${column.foreignKey.columnName})`;
-        if (column.foreignKey.onDelete) {
-          columnDef += ` ON DELETE ${column.foreignKey.onDelete}`;
-        }
-      }
-
-      return columnDef;
-    });
-
-    return columns.join(", ");
-  }
   async vacuum(tableName, analyze = true) {
     const operation = "VACUUM";
     try {
@@ -868,6 +908,7 @@ class ClientSqlHelper {
       );
     }
   }
+
   async getAllTables(includeStats = false) {
     const operation = "GET_ALL_TABLES";
     try {
