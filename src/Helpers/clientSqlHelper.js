@@ -140,53 +140,47 @@ class ClientSqlHelper {
   _inferColumnType(columnName, value) {
     if (value === null || value === undefined) {
       const lowerColName = columnName.toLowerCase();
-      if (lowerColName === "id" || lowerColName.endsWith("_id")) return "UUID";
-      if (
-        lowerColName.includes("created_at") ||
-        lowerColName.includes("updated_at")
-      )
-        return "TIMESTAMP";
-      if (lowerColName.includes("is_") || lowerColName.includes("has_"))
-        return "BOOLEAN";
-      return "TEXT";
+      if (lowerColName === 'id') return 'UUID PRIMARY KEY';
+      if (lowerColName.endsWith('_id')) return 'UUID';
+      if (lowerColName.includes('created_at') || lowerColName.includes('updated_at')) return 'TIMESTAMP';
+      if (lowerColName.includes('is_') || lowerColName.includes('has_')) return 'BOOLEAN';
+      return 'TEXT';
     }
-
+  
     switch (typeof value) {
-      case "string":
-        if (this._isUUID(value)) return "UUID";
-        if (this._isTimestamp(value)) return "TIMESTAMP";
-        if (value.length > 255) return "TEXT";
-        return "VARCHAR(255)";
-      case "number":
-        return Number.isInteger(value) ? "INTEGER" : "NUMERIC";
-      case "boolean":
-        return "BOOLEAN";
-      case "object":
-        if (Array.isArray(value)) return "JSONB";
-        if (value instanceof Date) return "TIMESTAMP";
-        return "JSONB";
+      case 'string':
+        if (this._isUUID(value)) return 'UUID';
+        if (this._isTimestamp(value)) return 'TIMESTAMP';
+        if (value.length > 255) return 'TEXT';
+        return 'VARCHAR(255)';
+      case 'number':
+        return Number.isInteger(value) ? 'INTEGER' : 'NUMERIC';
+      case 'boolean':
+        return 'BOOLEAN';
+      case 'object':
+        if (Array.isArray(value)) return 'JSONB';
+        if (value instanceof Date) return 'TIMESTAMP';
+        return 'JSONB';
       default:
-        return "TEXT";
+        return 'TEXT';
     }
   }
+  
 
   _inferColumnConstraints(columnName, value) {
     const constraints = [];
     const lowerColName = columnName.toLowerCase();
-
-    if (lowerColName === "id") {
-      constraints.push("PRIMARY KEY");
+  
+    // Don't add PRIMARY KEY constraint here since it's handled in _inferColumnType
+    if (value !== null && value !== undefined && lowerColName !== 'id') {
+      constraints.push('NOT NULL');
     }
-
-    if (value !== null && value !== undefined) {
-      constraints.push("NOT NULL");
+  
+    if (lowerColName.includes('email') || lowerColName.includes('username')) {
+      constraints.push('UNIQUE');
     }
-
-    if (lowerColName.includes("email") || lowerColName.includes("username")) {
-      constraints.push("UNIQUE");
-    }
-
-    return constraints.join(" ");
+  
+    return constraints.length ? constraints.join(' ') : '';
   }
 
   _isUUID(str) {
@@ -885,103 +879,90 @@ class ClientSqlHelper {
       );
     }
   }
-
   async ensureTableExists(query, params) {
     try {
-      // Extract table name from the query with improved regex
-      const tableMatch = query.match(/INSERT INTO\s+["']?([^"'\s]+)["']?/i);
+      this.log('Checking query for table creation:', query);
+      
+      // Extract table name using precise regex
+      const tableMatch = query.match(/INSERT\s+INTO\s+["]([^"]+)["]/i);
       if (!tableMatch || !tableMatch[1]) {
-        this.logError("Could not parse table name from query:", { query });
-        throw new Error("Could not determine table name from query: " + query);
+        this.logError('Invalid table name in query:', { query });
+        throw new Error('Invalid table name in query: ' + query);
       }
-
-      const tableName = tableMatch[1].replace(/['"]/g, "");
-      this.log(`Checking if table ${tableName} exists`);
-
-      // Extract column names from the query
-      const columnMatch = query.match(/\(([\s\S]*?)\)\s+VALUES/i);
-      if (!columnMatch || !columnMatch[1]) {
-        this.logError("Could not parse columns from query:", { query });
-        throw new Error("Could not determine columns from query: " + query);
-      }
-
+  
+      const tableName = tableMatch[1];
+      this.log(`Found table name: ${tableName}`);
+  
+      // Check if table exists
       const exists = await this.tableExists(tableName);
-
-      if (!exists) {
-        this.log(`Table ${tableName} does not exist, creating...`);
-
-        const columns = columnMatch[1]
-          .split(",")
-          .map((col) => col.trim().replace(/['"]/g, ""));
-
-        // Map columns with their parameters
-        const columnDefinitions = columns.map((colName, index) => {
-          const value = params[index];
-          return {
-            name: colName,
-            type: this._inferColumnType(colName, value),
-            constraints: this._inferColumnConstraints(colName, value),
-          };
-        });
-
-        const createTableQuery = `
-          CREATE TABLE IF NOT EXISTS ${tableName} (
-            ${columnDefinitions
-              .map(
-                (col) =>
-                  `"${col.name}" ${col.type}${
-                    col.constraints ? " " + col.constraints : ""
-                  }`
-              )
-              .join(",\n")}
-          )
-        `;
-
-        this.log("Creating table with query:", createTableQuery);
-        await this.executeWrite(createTableQuery);
-        this.log(`Table ${tableName} created successfully`);
-
-        // Add indexes for commonly indexed columns
-        const indexableColumns = columnDefinitions
-          .filter(
-            (col) =>
-              col.name.toLowerCase().includes("email") ||
-              col.name.toLowerCase().includes("username") ||
-              col.constraints.includes("UNIQUE")
-          )
-          .map((col) => col.name);
-
-        for (const column of indexableColumns) {
-          const indexName = `idx_${tableName}_${column.toLowerCase()}`;
-          try {
-            await this.createIndex({
-              name: indexName,
-              tableName: tableName,
-              columns: [column],
-              unique: true,
-            });
-            this.log(`Created index ${indexName} on ${tableName}(${column})`);
-          } catch (error) {
-            this.logError(`Failed to create index ${indexName}:`, error);
-            // Continue even if index creation fails
-          }
-        }
-
+      if (exists) {
+        this.log(`Table ${tableName} already exists`);
         return true;
       }
-
+  
+      // Extract column definitions
+      const columnMatch = query.match(/\(([^)]+)\)\s+VALUES/i);
+      if (!columnMatch || !columnMatch[1]) {
+        throw new Error('Could not parse column definitions from query');
+      }
+  
+      // Parse columns
+      const columns = columnMatch[1].split(',').map(col => 
+        col.trim().replace(/['"]/g, '')
+      );
+  
+      this.log('Creating table with columns:', columns);
+  
+      // Create column definitions
+      const columnDefinitions = columns.map((colName, index) => {
+        const value = params[index];
+        return {
+          name: colName,
+          type: this._inferColumnType(colName, value),
+          constraints: this._inferColumnConstraints(colName, value)
+        };
+      });
+  
+      // Create table query
+      const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS "${tableName}" (
+          ${columnDefinitions.map(col => 
+            `"${col.name}" ${col.type}${col.constraints ? ' ' + col.constraints : ''}`
+          ).join(',\n')}
+        )
+      `;
+  
+      this.log('Executing create table query:', createTableQuery);
+      await this.sqlExecutor.executeQuery(createTableQuery);
+      this.log(`Table ${tableName} created successfully`);
+  
+      // Create indexes
+      const indexableColumns = columnDefinitions
+        .filter(col => 
+          col.name.toLowerCase().includes('email') ||
+          col.name.toLowerCase().includes('username') ||
+          col.constraints.includes('UNIQUE')
+        )
+        .map(col => col.name);
+  
+      for (const column of indexableColumns) {
+        const indexName = `idx_${tableName}_${column.toLowerCase()}`;
+        await this.createIndex({
+          name: indexName,
+          tableName: tableName,
+          columns: [column],
+          unique: true
+        });
+        this.log(`Created index on ${tableName}.${column}`);
+      }
+  
       return true;
     } catch (error) {
-      this.logError(`Error ensuring table exists:`, error);
-      throw new ClientSqlError(
-        "Failed to ensure table exists: " + error.message,
-        "ENSURE_TABLE",
-        query,
-        params,
-        error
-      );
+      this.logError('Error in ensureTableExists:', error);
+      throw error;
     }
   }
+  
 
   // Also modify the executeWrite method to use ensureTableExists:
 

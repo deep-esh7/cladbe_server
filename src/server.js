@@ -137,32 +137,46 @@ app.post("/api/sql/query", async (req, res) => {
   }
 });
 
-// Modify the execute route in express app
 app.post("/api/sql/execute", async (req, res) => {
   try {
     if (!clientSqlHelper) throw new Error("SQL components not initialized");
 
-    const { query, parameters, tableDefinition } = req.body;
+    const { query, parameters } = req.body;
     console.log("Executing SQL command:", {
       query,
       parameters,
       timestamp: new Date().toISOString(),
     });
 
-    // Extract table name from the query
-    const tableNameMatch = query.match(
-      /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+["']?(\w+)["']?/i
-    );
-    if (tableNameMatch) {
-      const tableName = tableNameMatch[1];
-      await clientSqlHelper.ensureTableExists(tableName, tableDefinition);
+    // Handle auto table creation for INSERT queries
+    if (query.trim().toUpperCase().startsWith("INSERT")) {
+      try {
+        await clientSqlHelper.ensureTableExists(query, parameters);
+      } catch (error) {
+        console.error("Table creation failed:", error);
+        throw error;
+      }
     }
 
+    // Execute the query
     const result = await clientSqlHelper.executeWrite(query, parameters);
     res.json({ success: true, data: result });
   } catch (error) {
     console.error("Command execution failed:", error);
-    res.status(500).json({ success: false, error: error.message });
+    if (error.code === "42P01") {
+      // PostgreSQL error code for undefined_table
+      res.status(500).json({
+        success: false,
+        error: "Table does not exist",
+        details: error.message,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: error.stack,
+      });
+    }
   }
 });
 
