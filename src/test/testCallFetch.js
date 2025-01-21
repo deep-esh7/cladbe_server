@@ -1446,6 +1446,36 @@ async function addOwnerAndCoOwner(
     console.error("Error adding co-owner: ", error);
   }
 }
+async function fetchTataRecordingIdByRecordingIdDoc(companyId, audioFileId) {
+  try {
+    // Use await to fetch document from Firestore
+    const doc = await db
+      .collection("Companies")
+      .doc(companyId)
+      .collection("conversations")
+      .doc("telephony")
+      .collection("audioFiles")
+      .doc(audioFileId)
+      .get();
+
+    // Check if the document exists
+    if (!doc.exists) {
+      throw new Error(`Audio file with ID ${audioFileId} not found`);
+    }
+
+    // Access recordingIdForTata from the document data
+    const recordingIdForTata = doc.data().recordingIdForTata;
+
+    console.log(`${recordingIdForTata} : audio file id`);
+
+    // Return the recordingIdForTata
+    return recordingIdForTata;
+  } catch (error) {
+    console.error("Error fetching Tata recording ID:", error);
+    throw error; // Rethrow the error for handling higher up the call stack
+  }
+}
+
 async function getCoOwnerList(companyId, leadId) {
   try {
     const leadRef = db
