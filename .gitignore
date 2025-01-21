@@ -1,3 +1,4 @@
 .env
 src/test/cladbe_servicekey.json
 node_modules
+src/test/config.js
