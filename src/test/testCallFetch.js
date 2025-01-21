@@ -1274,6 +1274,54 @@ async function updateEmployeeListToDB(
   }
 }
 
+async function updateCallLogsToDb(callLogs, webHookType, fileUrl) {
+  const cleanCallLogs = cleanObject(callLogs);
+
+  try {
+    // Construct the path in Realtime Database
+    const path = `/Companies/${cleanCallLogs.companyID}/conversations/telephony/call collection/${cleanCallLogs.callId}`;
+
+    // Update data
+    await realtimeDb.ref(path).update(cleanCallLogs);
+
+    console.log("Update completed.");
+
+    if (webHookType === "callAnsweredByAgent") {
+      console.log(
+        "Call logs updated as received by callAnsweredByAgent Webhook"
+      );
+    } else if (webHookType === "fetchAgentData") {
+      console.log("Employee details updated as received by AgentData Webhook");
+    } else {
+      console.log("Call logs updated as received by HangUp Webhook");
+
+      // Example logic to upload file to Firebase Storage after 20 seconds
+      const filePath = `Companies/${cleanCallLogs.companyID}/conversations/telephony/callRecordings/${cleanCallLogs.callId}`;
+      console.log("file url before snding uploading : " + fileUrl);
+      setTimeout(() => {
+        uploadFile(cleanCallLogs.callId + ".mp3", fileUrl, filePath).then(
+          (uploadResponseData) => {
+            // Update Realtime Database with the recording link
+            realtimeDb.ref(path).update({
+              recordingLink: getAppDocument(
+                uploadResponseData.name,
+                uploadResponseData.documentPath,
+                uploadResponseData.hashingCode,
+                uploadResponseData.bucketName,
+                uploadResponseData.bucketProvider,
+                uploadResponseData.previewDocumentPath,
+                uploadResponseData.previewHashingCode
+              ), // Update the recording link in Realtime Database
+            });
+          }
+        );
+      }, 30000);
+    }
+  } catch (error) {
+    console.error("Error updating call logs:", error);
+  }
+}
+
 async function hitLiveCallCheckApiWithEmployeeData(
   companyId,
   employeeDataMap,
