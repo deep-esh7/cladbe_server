@@ -43,13 +43,19 @@ let sqlExecutor;
 let clientSqlHelper;
 let wsHandler;
 
+app.set("trust proxy", true);
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  trustProxy: true,
   message: "Too many requests, please try again later.",
+  keyGenerator: (req) => {
+    return req.ip; // IP address from the most-trusted source
+  },
 });
 
 // CORS configuration with WebSocket support
@@ -118,7 +124,8 @@ app.get("/health", (req, res) => {
 // Routes
 app.use("/api/leads", leadsRoutes);
 
-app.post("/api/fetchAgentData", callHandler.fetchAgentData);
+app.post("/api/fetchAgentData", fetchAgentData);
+app.post("/fetchAgentData", fetchAgentData);
 
 // SQL Query Routes
 app.post("/api/sql/query", async (req, res) => {
