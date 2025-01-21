@@ -242,18 +242,62 @@ async function handleExistingLead(
         true
       );
 
-      if (conditionDetails.stickyAgent) {
-        if (conditionDetails.fromThisTeamOnly) {
-          await handleTeamCallRouting(
-            companyId,
-            leadData,
-            conditionDetails,
-            employeeData,
-            callToNumber,
-            callerNumber,
-            callID,
-            res
-          );
+      if (conditionDetails.stickyAgent == true) {
+        if (conditionDetails.fromThisTeamOnly == true) {
+          const employeeList = conditionDetails.employeeList;
+
+          if (
+            employeeList.some((employee) => employee.id === leadData.ownerId) ==
+            true
+          ) {
+            routeSingleCallsBasisOnConditions(
+              companyId,
+              res,
+              conditionDetails,
+              employeeData,
+              leadData
+            );
+          } else if (
+            conditionDetails["callTransferToCoOwner"] == true &&
+            employeeList.some(
+              (employee) => employee.id === leadData.coOwners.id
+            )
+          ) {
+            const matchingEmployee = employeeList.find(
+              (employee) => employee.id === leadData.coOwners.id
+            );
+
+            if (matchingEmployee) {
+              const employeeId = matchingEmployee.id;
+              console.log(`Found employee with ID ${employeeId}`);
+
+              const coOwnerAllDetails = fetchEmployeeData(
+                companyId,
+                employeeId,
+                true
+              );
+
+              routeSingleCallsBasisOnConditions(
+                companyId,
+                res,
+                conditionDetails,
+                coOwnerAllDetails.number,
+                leadData
+              );
+            } else {
+              console.log(`No employee found with ID ${leadData.coOwners.id}`);
+            }
+          } else {
+            await routeCall(
+              companyId,
+              callToNumber,
+              callerNumber,
+              callID,
+              leadData.baseid,
+              res,
+              leadData
+            );
+          }
         } else {
           await routeSingleCallsBasisOnConditions(
             companyId,
@@ -279,6 +323,99 @@ async function handleExistingLead(
     console.error("Error in handleExistingLead:", error);
     throw error;
   }
+}
+
+async function routeSingleCallsBasisOnConditions(
+  companyId,
+  res,
+  conditionDetails,
+  employeeData,
+  leadData
+) {
+  console.log(employeeData + "fajjlsdfjkljkl");
+  console.log(leadData);
+
+  // Get project name
+  const projectName =
+    Array.isArray(leadData.projectData) && leadData.projectData.length > 0
+      ? leadData.projectData[0]?.name || ""
+      : "";
+
+  // Send notification to first agent
+  triggerNotification(
+    {
+      notificationType: "inboundCall",
+      projectName: projectName,
+      clientName: leadData.name,
+      clientNumber: leadData.mobileNo,
+      leadStatus: leadData.leadStatus,
+      leadSubStatus: leadData.leadSubStatus,
+      baseId: leadData.baseid,
+      companyId: companyId,
+    },
+    companyId,
+    leadData.ownerId
+  );
+
+  // Fetch recording IDs if they exist and are not empty
+  let welcomeRecordingId = "";
+  let onHoldRecordingId = "";
+
+  if (
+    conditionDetails.welcomeRecordingID &&
+    conditionDetails.welcomeRecordingID.trim() !== ""
+  ) {
+    welcomeRecordingId = await fetchTataRecordingIdByRecordingIdDoc(
+      companyId,
+      conditionDetails.welcomeRecordingID
+    );
+  }
+
+  if (
+    conditionDetails.onHoldRecordingID &&
+    conditionDetails.onHoldRecordingID.trim() !== ""
+  ) {
+    onHoldRecordingId = await fetchTataRecordingIdByRecordingIdDoc(
+      companyId,
+      conditionDetails.onHoldRecordingID
+    );
+  }
+
+  console.log(onHoldRecordingId);
+
+  // Prepare response array
+  const response = [];
+
+  // Add welcome recording if exists and is not empty
+  if (welcomeRecordingId && welcomeRecordingId.trim() !== "") {
+    response.push({
+      recording: {
+        type: "system",
+        data: welcomeRecordingId,
+      },
+    });
+  }
+
+  // Add transfer with optional moh
+  const transfer = {
+    transfer: {
+      type: "number",
+      data: [employeeData],
+    },
+  };
+
+  // Add moh only if onHoldRecordingId exists and is not empty
+  if (onHoldRecordingId && onHoldRecordingId.trim() !== "") {
+    transfer.transfer.moh = onHoldRecordingId;
+  }
+
+  response.push(transfer);
+
+  console.log("final response sent to tata api ");
+
+  console.log(JSON.stringify(response));
+
+  res.send(response);
 }
 
 async function fetchDestinationBycallToNumber(
