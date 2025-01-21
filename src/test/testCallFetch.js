@@ -1198,6 +1198,82 @@ async function createLead(clientNumber, companyId, conditionDetails) {
   }
 }
 
+async function updateEmployeeListToDB(
+  routing,
+  companyId,
+  conditionID,
+  listOfEmployees
+) {
+  // Guard against empty list
+  if (!listOfEmployees || listOfEmployees.length === 0) {
+    console.log("No employees to rotate");
+    return;
+  }
+
+  let rotatedEmployeesList;
+
+  // Function to perform one-step circular rotation
+  function circularRotateOneStep(arr) {
+    // Take first element and move it to end
+    const rotated = [...arr.slice(1), arr[0]];
+    return rotated;
+  }
+
+  if (routing == "Round Robin (1 by 1)") {
+    // Simple one-step rotation: [1,2,3,4] becomes [2,3,4,1]
+    rotatedEmployeesList = circularRotateOneStep(listOfEmployees);
+    console.log("One step rotation result:", rotatedEmployeesList);
+  }
+
+  if (routing == "Round Robin (Simultaneous)") {
+    // Split the list into two equal parts
+    const middleIndex = Math.floor(listOfEmployees.length / 2);
+    const firstHalf = listOfEmployees.slice(0, middleIndex);
+    const secondHalf = listOfEmployees.slice(middleIndex);
+
+    // Rotate each half one step
+    const rotatedFirstHalf = circularRotateOneStep(firstHalf);
+    const rotatedSecondHalf = circularRotateOneStep(secondHalf);
+
+    // Combine the rotated halves alternately
+    rotatedEmployeesList = [];
+    for (
+      let i = 0;
+      i < Math.max(rotatedFirstHalf.length, rotatedSecondHalf.length);
+      i++
+    ) {
+      if (i < rotatedFirstHalf.length) {
+        rotatedEmployeesList.push(rotatedFirstHalf[i]);
+      }
+      if (i < rotatedSecondHalf.length) {
+        rotatedEmployeesList.push(rotatedSecondHalf[i]);
+      }
+    }
+
+    console.log("Original list:", listOfEmployees);
+    console.log("Rotated list:", rotatedEmployeesList);
+  }
+
+  try {
+    await db
+      .collection("Companies")
+      .doc(companyId)
+      .collection("conversations")
+      .doc("telephony")
+      .collection("telephony")
+      .doc("conditions")
+      .collection("conditions")
+      .doc(conditionID)
+      .update({
+        employeeList: rotatedEmployeesList,
+      });
+
+    console.log("List updated successfully in database");
+  } catch (error) {
+    console.error("Error updating list:", error);
+  }
+}
+
 async function routeCall(
   companyId,
   callToNumber,
