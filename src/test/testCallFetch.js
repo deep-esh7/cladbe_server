@@ -1322,6 +1322,153 @@ async function updateCallLogsToDb(callLogs, webHookType, fileUrl) {
   }
 }
 
+async function updateLeadData(
+  companyID,
+  agentID,
+  agentName,
+  agentDesignation,
+  leadID,
+  stickyAgent,
+  deleteCoOwners,
+  otherDetails,
+  projects
+  // destinationFromId,
+  // destinationFromName
+) {
+  console.log("updateLeadDataFunction");
+  console.log(
+    companyID + " " + agentID + " " + agentDesignation + " " + leadID + " "
+  );
+
+  if (stickyAgent == false) {
+    var status;
+    var destinationfromid;
+    var destinationfromname;
+    if (agentID == "") {
+      status = "Unallocated";
+    } else {
+      status = "Fresh";
+    }
+
+    // if (destinationFromId == undefined) {
+    //   destinationfromid = "";
+    // } else {
+    //   destinationfromid = destinationFromId;
+    // }
+
+    // if (destinationFromName == undefined) {
+    //   destinationfromname = "";
+    // } else {
+    //   destinationfromname = destinationFromName;
+    // }
+
+    if (otherDetails != undefined) {
+      // update lead with other details also
+      await db
+        .collection("Companies")
+        .doc(companyID)
+        .collection("leads")
+        .doc(leadID)
+        .update({
+          "owner.designation": agentDesignation,
+          "owner.id": agentID,
+          "owner.name": agentName,
+          status: otherDetails.status,
+          subStatus: otherDetails.subStatus,
+          source: otherDetails.source,
+          subsource: otherDetails.subsource,
+          projects: projects,
+
+          // destinationFromId: destinationfromid,
+          // destinationFromName: destinationfromname,
+        });
+    } else {
+      await db
+        .collection("Companies")
+        .doc(companyID)
+        .collection("leads")
+        .doc(leadID)
+        .update({
+          "owner.designation": agentDesignation,
+          "owner.id": agentID,
+          "owner.name": agentName,
+          status: status,
+          // destinationFromId: destinationfromid,
+          // destinationFromName: destinationfromname,
+        });
+    }
+  } else {
+    const coOwner = {
+      id: agentID,
+      designation: agentDesignation,
+      name: agentName,
+    };
+
+    addOwnerAndCoOwner(coOwner, companyID, leadID, deleteCoOwners);
+  }
+}
+
+async function addOwnerAndCoOwner(
+  coOwnerDetails,
+  companyId,
+  leadId,
+  deleteCoOwners
+) {
+  try {
+    const leadRef = db
+      .collection("Companies")
+      .doc(companyId)
+      .collection("leads")
+      .doc(leadId);
+
+    if (deleteCoOwners == undefined || deleteCoOwners == false) {
+      var coOwnerList = await getCoOwnerList(companyId, leadId);
+
+      if (
+        coOwnerList.some((coOwner) => coOwner.id === coOwnerDetails.id) == false
+      ) {
+        coOwnerList.push(coOwnerDetails);
+
+        leadRef.update({
+          coOwners: coOwnerList,
+        });
+      }
+    } else {
+      var newcoOwnerList = [];
+
+      leadRef.update({
+        coOwners: newcoOwnerList,
+      });
+    }
+
+    console.log("Co-owner added successfully");
+  } catch (error) {
+    console.error("Error adding co-owner: ", error);
+  }
+}
+async function getCoOwnerList(companyId, leadId) {
+  try {
+    const leadRef = db
+      .collection("Companies")
+      .doc(companyId)
+      .collection("leads")
+      .doc(leadId);
+    const doc = await leadRef.get();
+
+    if (!doc.exists) {
+      throw new Error("Lead document not found");
+    }
+
+    const leadData = doc.data();
+    const coOwners = leadData.coOwners || [];
+
+    return coOwners;
+  } catch (error) {
+    console.error("Error getting co-owners: ", error);
+    throw error;
+  }
+}
+
 async function hitLiveCallCheckApiWithEmployeeData(
   companyId,
   employeeDataMap,
