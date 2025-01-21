@@ -5,7 +5,7 @@ const path = require("path");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const WebSocketHandler = require("./websocket/webSocketHandler.js");
-const callHandler = require("./test/testCallFetch.js");
+const { fetchAgentData } = require('./test/testCallFetch');
 
 // Import database and helper dependencies
 const db = require("./db/connection.js");
