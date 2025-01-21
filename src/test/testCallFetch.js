@@ -189,6 +189,7 @@ async function handleNewOrInactiveLead(
       `Lead Marked As Active Again From InActive : ${clientName
         .toString()
         .toUpperCase()}`
+      //empty
     );
   } else {
     const conditionDetails = await fetchConditions(
