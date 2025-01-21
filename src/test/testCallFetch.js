@@ -280,6 +280,299 @@ async function handleExistingLead(
     throw error;
   }
 }
+
+async function fetchDestinationBycallToNumber(
+  companyId,
+  callToNumber,
+  callerNumber,
+  callID,
+  leadID
+) {
+  try {
+    const doc = await db
+      .collection("Companies")
+      .doc(companyId)
+      .collection("conversations")
+      .doc("telephony")
+      .collection("telephony")
+      .doc(callToNumber)
+      .get();
+
+    if (doc.exists) {
+      const data = doc.data();
+      if (data.isActive) {
+        const destination = data.destination;
+        const destinationID = data.destinationID;
+        let employeeName;
+        let employeeDesignation;
+        let employeeId;
+        let employeeMobileNumber;
+        const employeeDataMap = new Map();
+        const employeeIdList = [];
+        const employeeMobileNumberList = [];
+        var stickyAgent;
+
+        var otherDetails;
+
+        console.log(destination + " saddsajhads");
+
+        if (destination === "Conditions") {
+          // Return a map with available employee list
+          const conditionDetails = await fetchConditions(
+            companyId,
+            destination,
+            destinationID,
+            false
+          );
+
+          // console.log("Lead Details: ", leadDetails);
+
+          console.log("Condition Details: ", JSON.stringify(conditionDetails));
+
+          const employeeDetails = conditionDetails["phoneNumbers"];
+
+          console.log(JSON.stringify(employeeDetails));
+
+          stickyAgent = conditionDetails["stickyAgent"];
+
+          // Assuming employeeDetails is an array of objects
+          employeeDetails.forEach((employee) => {
+            if (!employeeName) {
+              // Set initial employee details
+              employeeName = employee["data"].name;
+              employeeDesignation = employee["data"].designation;
+              employeeMobileNumber = employee["data"].phoneNumber;
+              employeeId = employee["data"].id;
+            }
+
+            console.log(employeeName + " - id to print hora h");
+
+            // Populate employeeDataMap with phoneNumber as key and array of details as value
+            employeeDataMap.set(employee["data"].phoneNumber, [
+              employee["data"].name,
+              employee["data"].id,
+              employee["data"].designation,
+            ]);
+
+            // Populate lists with employee id and phoneNumber
+            employeeIdList.push(employee["data"].id);
+            employeeMobileNumberList.push(employee["data"].phoneNumber);
+          });
+
+          // Logging keys and values from employeeDataMap
+          employeeDataMap.forEach((value, key) => {
+            console.log(key + " -> " + JSON.stringify(value));
+          });
+
+          // Create call logs instance
+          const callLogs = new CreateCallCollection({
+            companyID: companyId,
+            agentid: employeeId,
+            agentName: employeeName,
+            agentDesignation: employeeDesignation,
+            incomingAgentMobileNumber: employeeMobileNumber,
+            destinationID: destinationID,
+            baseID: leadID,
+            callId: callID,
+            agentIDs: employeeIdList,
+            leadStatusType: "Fresh",
+            stickyAgent: stickyAgent,
+          });
+
+          console.log("Call ID from fetch agent data: " + callID.toString());
+
+          console.log(
+            "BEFORE SENDING MAP FULL MAP " +
+              JSON.stringify([...employeeDataMap])
+          );
+
+          console.log("lead id yaha par : " + leadID);
+          const leadData = await checkLeadExist(companyId, callerNumber);
+
+          var deleteCoOwners;
+          console.log("Before accessing conditionDetails");
+          console.log("conditionDetails:", conditionDetails);
+
+          var inActiveCallAsNewLead = conditionDetails.inActiveCallAsNewLead;
+
+          var projects;
+
+          if (
+            conditionDetails &&
+            conditionDetails.inActiveCallAsNewLead !== undefined
+          ) {
+            console.log(
+              "yaha pr phcha " +
+                leadData.leadState +
+                " lead state, inactive : " +
+                conditionDetails.inActiveCallAsNewLead
+            );
+          } else {
+            console.log(
+              "conditionDetails or inActiveCallAsNewLead is undefined or null."
+            );
+          }
+
+          console.log(
+            "After accessing conditionDetails " + inActiveCallAsNewLead
+          );
+          if (
+            leadData.leadState == "inactive" &&
+            inActiveCallAsNewLead == true
+          ) {
+            deleteCoOwners = true;
+
+            //if lead is inactive so we are making it active also we are overriding its preexisting data like owner , deletingn coowner , and overriding source , subsource , status  , substatus type by sending in other details
+
+            otherDetails = {
+              status: conditionDetails.status,
+              subStatus: conditionDetails.subStatus,
+              source: conditionDetails.source,
+              subsource: conditionDetails.subsource,
+            };
+
+            projects = conditionDetails.projects;
+
+            addOwnerAndCoOwner([], companyId, leadID, deleteCoOwners);
+            stickyAgent = false;
+          } else {
+            deleteCoOwners = false;
+          }
+
+          if (leadData.ownerId == "") {
+            stickyAgent = false;
+          }
+
+          hitLiveCallCheckApiWithEmployeeData(
+            companyId,
+            employeeDataMap,
+            employeeMobileNumberList,
+            callID,
+            leadID,
+            stickyAgent,
+            deleteCoOwners
+            // destinationID,
+            // destination
+          );
+
+          // Your existing code for hitting live check API
+          updateCallLogsToDb(callLogs, "fetchAgentData");
+
+          // this function checkes wether it is a very first call of lead as owner not assigned yet so we mmark sticky agent as false the owner can get assigned to it
+
+          updateLeadData(
+            companyId,
+            employeeId,
+            employeeName,
+            employeeDesignation,
+            leadID,
+            stickyAgent,
+            deleteCoOwners,
+            otherDetails,
+            projects
+
+            // destinationID,
+            // destination
+          );
+
+          console.log(JSON.stringify(conditionDetails));
+          var welcomeRecording;
+          var onHoldRecording;
+
+          if (conditionDetails["welcomeRecordingId"] != "") {
+            welcomeRecording = await fetchTataRecordingIdByRecordingIdDoc(
+              companyId,
+              conditionDetails["welcomeRecordingId"]
+            );
+          } else {
+            welcomeRecording = "";
+          }
+
+          if (conditionDetails["onHoldRecordingId"] != "") {
+            onHoldRecording = await fetchTataRecordingIdByRecordingIdDoc(
+              companyId,
+              conditionDetails["onHoldRecordingId"]
+            );
+          } else {
+            onHoldRecording = "";
+          }
+
+          if (welcomeRecording === "") {
+            // welcomeRecording = "146393";
+            welcomeRecording = "";
+          }
+          if (onHoldRecording === "") {
+            // onHoldRecording = "146393";
+            onHoldRecording = "";
+          }
+
+          return {
+            type: "numbers",
+            welcomeRecordingId: welcomeRecording,
+            onHoldRecordingId: onHoldRecording,
+            hangUpRecordingId: conditionDetails["hangUpRecordingId"],
+            data: employeeMobileNumberList,
+            routing: conditionDetails["routing"],
+          };
+        } else if (destination === "IVR") {
+          // Fetch IVR Details
+        } else if (destination === "Employee") {
+          const employeeDetails = await fetchConditions(
+            companyId,
+            destination,
+            destinationID,
+            true
+          );
+
+          console.log("Lead ID: ", leadID);
+
+          // Create call logs instance
+          const callLogs = new CreateCallCollection({
+            companyID: companyId,
+            agentid: employeeDetails.id,
+            agentName: employeeDetails.name,
+            agentDesignation: employeeDetails.designation,
+            incomingAgentMobileNumber: employeeDetails.phoneNumber,
+            destination: "Employee",
+            destinationID: employeeDetails.id,
+            baseID: leadID,
+            callId: callID,
+          });
+
+          updateCallLogsToDb(callLogs, "fetchAgentData");
+
+          updateLeadData(
+            companyId,
+            employeeDetails.id,
+            employeeDetails.name,
+            employeeDetails.designation,
+            leadID,
+            false
+            // destinationID,
+            // destination
+          );
+
+          // Default recording for employee
+          return {
+            type: "numbers",
+            data: employeeDetails.phoneNumber,
+            welcomeRecordingId: "",
+            onHoldRecordingId: "146393",
+            hangUpRecordingId: "",
+          };
+          // Fetch employee id
+        }
+      } else {
+        // Send hangup status and recording as this number is temporarily out of service
+      }
+    } else {
+      // Document doesn't exist
+    }
+  } catch (error) {
+    console.error("Error occurred:", error);
+    // Handle error appropriately
+  }
+}
 async function getLeadTempLeadName(companyId) {
   try {
     const querySnapshot = await db
