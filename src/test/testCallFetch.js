@@ -66,11 +66,9 @@ const fetchAgentData = async (req, res) => {
     ];
     const missingFields = requiredFields.filter((field) => !req.body[field]);
     if (missingFields.length > 0) {
-      return res
-        .status(400)
-        .json({
-          error: `Missing required fields: ${missingFields.join(", ")}`,
-        });
+      return res.status(400).json({
+        error: `Missing required fields: ${missingFields.join(", ")}`,
+      });
     }
 
     const uuid = req.body.uuid.toString();
@@ -279,6 +277,24 @@ async function handleExistingLead(
     }
   } catch (error) {
     console.error("Error in handleExistingLead:", error);
+    throw error;
+  }
+}
+async function getLeadTempLeadName(companyId) {
+  try {
+    const querySnapshot = await db
+      .collection("Companies")
+      .doc(companyId)
+      .collection("leads")
+      .get();
+
+    var documentCount = querySnapshot.size;
+    if (documentCount == 0 || documentCount == undefined) {
+      documentCount = 0;
+    }
+    return (documentCount + 1).toString();
+  } catch (error) {
+    console.error("Error fetching document count: ", error);
     throw error;
   }
 }
