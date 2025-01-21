@@ -1274,6 +1274,142 @@ async function updateEmployeeListToDB(
   }
 }
 
+async function hitLiveCallCheckApiWithEmployeeData(
+  companyId,
+  employeeDataMap,
+  employeeMobileNumberList,
+  callId,
+  leadId,
+  stickyAgent,
+  deleteCoOwners
+) {
+  console.log(leadId + " - Lead ID");
+
+  let taskCompleted = "no";
+
+  const apiUrl = `https://api-smartflo.tatateleservices.com/v1/live_calls?call_id=${callId}`;
+  const token = "Bearer " + Config.EnvKeys.tataCalls;
+
+  async function makeApiCall() {
+    try {
+      const response = await axios.get(apiUrl, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token,
+        },
+      });
+
+      const responseData = response.data;
+      console.log("API Response:", responseData);
+
+      if (
+        responseData.length === 0 ||
+        responseData === null ||
+        responseData === undefined ||
+        responseData.length === 0
+      ) {
+        if (taskCompleted === "no") {
+          console.log("Stopping further API calls");
+          return;
+        }
+      } else {
+        const firstCall = responseData[0];
+
+        if (firstCall) {
+          console.log(
+            JSON.stringify(firstCall) + " - Details of the first call"
+          );
+          console.log(
+            JSON.stringify(employeeMobileNumberList[0]) +
+              " - Current employee details"
+          );
+
+          console.log(firstCall.destination + " - Call destination");
+          if (
+            firstCall.destination &&
+            firstCall.destination !== "" &&
+            firstCall.destination !== " " &&
+            firstCall.destination !== null &&
+            firstCall.destination !== employeeMobileNumberList[0]
+          ) {
+            console.log("First block");
+            if (employeeMobileNumberList.length > 0) {
+              console.log("Second block");
+              employeeMobileNumberList = employeeMobileNumberList.slice(1);
+
+              console.log(
+                "Full employee map: " + JSON.stringify([...employeeDataMap])
+              );
+
+              console.log(
+                "Employee map after slice: " +
+                  JSON.stringify(employeeDataMap.get(firstCall.destination))
+              );
+
+              const employeeDetails = employeeDataMap.get(
+                firstCall.destination
+              );
+
+              if (employeeDetails) {
+                const agentName = employeeDetails[0];
+                const agentId = employeeDetails[1];
+                const agentDesignation = employeeDetails[2];
+
+                console.log(
+                  "Agent details: " +
+                    agentId +
+                    " " +
+                    agentName +
+                    " " +
+                    agentDesignation
+                );
+
+                const callLogs = new CreateCallCollection({
+                  companyID: companyId,
+                  callId: callId,
+                  agentid: agentId,
+                  agentName: agentName,
+                  agentDesignation: agentDesignation,
+                  incomingAgentMobileNumber: firstCall.destination,
+                  leadStatusType: "Fresh",
+                });
+
+                updateLeadData(
+                  companyId,
+                  agentId,
+                  agentName,
+                  agentDesignation,
+                  leadId,
+                  stickyAgent,
+                  deleteCoOwners
+                  // destinationId,
+                  // destinationName
+                );
+                updateCallLogsToDb(callLogs, "fetchAgentData");
+              } else {
+                console.log(
+                  `Employee details not found for destination: ${firstCall.destination}`
+                );
+              }
+            }
+          }
+        } else {
+          console.error("API response is empty or undefined");
+        }
+
+        console.log("State:", firstCall.state);
+      }
+
+      setTimeout(makeApiCall, 5000); // Call the function again after 5 seconds
+    } catch (error) {
+      console.error("Error fetching API:", error.message);
+    }
+  }
+
+  console.log(leadId + " - Initial Lead ID");
+  makeApiCall(); // Initial call to start the recursive API calling
+}
+
 async function routeCall(
   companyId,
   callToNumber,
