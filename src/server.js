@@ -1,8 +1,8 @@
 // Required imports
 const admin = require("../src/test/admin.js");
 const moment = require("moment-timezone");
-const { CreateCallCollection } = require("./models/callCollection");
-const { Lead, LeadPersonalDetails } = require("./models/lead_model");
+const { CreateCallCollection } = require("./test/models/callCollection.js");
+const { Lead, LeadPersonalDetails } = require("./test/models/lead_model");
 const { v4: uuidv4 } = require("uuid");
 
 const db = admin.firestore();
