@@ -29,10 +29,8 @@ jobs:
             git pull origin main &&
             npm install &&
             mkdir -p logs &&
-            # Install jq if not present
-            which jq || apt-get update && apt-get install -y jq &&
             echo '$ENV_VARS' > config.json &&
-            jq -r 'to_entries | .[] | .key + "=" + (.value | tostring)' config.json > .env &&
+            cat config.json | grep -o '\"[^\"]*\" *: *\"[^\"]*\"' | sed 's/\": \"/=/' | sed 's/\"//g' > .env &&
             rm config.json &&
             if pm2 list | grep -q 'cladbe_server'; then
               pm2 delete cladbe_server
