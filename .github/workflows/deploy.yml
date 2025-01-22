@@ -20,12 +20,31 @@ jobs:
           ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
           ssh -v -i ~/.ssh/github_deploy root@194.164.149.231 'echo "Connection successful"'
 
-      - name: Deploy
+      - name: Create ecosystem config and deploy
         if: success()
         run: |
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 '
             cd /root/cladbe_server &&
             git pull origin main &&
             npm install &&
-            pm2 list | grep -q "cladbe_server" && pm2 restart all || pm2 start npm --name "cladbe_server" -- start
+            mkdir -p logs &&
+            echo "module.exports = {
+              apps: [{
+                name: \"cladbe_server\",
+                script: \"./src/server.js\",
+                watch: true,
+                env: {
+                  NODE_ENV: \"production\",
+                  PORT: 3000
+                },
+                error_file: \"logs/err.log\",
+                out_file: \"logs/out.log\",
+                time: true
+              }]
+            }" > ecosystem.config.js &&
+            if pm2 list | grep -q "cladbe_server"; then
+              pm2 restart ecosystem.config.js
+            else
+              pm2 start ecosystem.config.js
+            fi
           '
