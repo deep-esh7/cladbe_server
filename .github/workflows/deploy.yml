@@ -29,10 +29,7 @@ jobs:
             git pull origin main &&
             npm install &&
             mkdir -p logs &&
-            # Create .env file with proper escaping
-            echo '"'"$ENV_VARS"'"' | jq -r '"'"to_entries|map("\(.key)=\(.value|@json)")|.[]"'"' > .env &&
-            # Replace escaped newlines in .env
-            sed -i '"'"'s/\\n/\n/g'"'"' .env &&
+            echo "$ENV_VARS" > .env &&
             if pm2 list | grep -q "cladbe_server"; then
               pm2 restart ecosystem.config.js --update-env
             else
