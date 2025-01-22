@@ -10,20 +10,18 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Debug Connection
+      - name: Setup SSH
         run: |
-          echo "Testing connection to server..."
-          nc -zv ${{ secrets.SSH_HOST }} 22
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          debug: true
-          script: |
-            cd /root/cladbe_server
-            git pull origin main
-            npm install
+      - name: Deploy
+        run: |
+          ssh -v -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} '
+            cd /root/cladbe_server &&
+            git pull origin main &&
+            npm install &&
             pm2 restart all
+          '
