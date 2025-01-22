@@ -29,10 +29,17 @@ jobs:
             git pull origin main &&
             npm install &&
             mkdir -p logs &&
-            echo "$ENV_VARS" > .env &&
+            echo '\''${{ secrets.ENV_VARS }}'\'' > temp.json &&
+            cat temp.json | tr -d "\r" | while IFS=":" read -r key value; do
+              if [ ! -z "$key" ]; then
+                clean_key=$(echo $key | tr -d '"{, ')
+                clean_value=$(echo $value | tr -d '"{, ')
+                echo "${clean_key}=${clean_value}" >> .env
+              fi
+            done &&
+            rm temp.json &&
             if pm2 list | grep -q "cladbe_server"; then
-              pm2 restart ecosystem.config.js --update-env
-            else
-              pm2 start ecosystem.config.js
-            fi
+              pm2 delete cladbe_server
+            fi &&
+            pm2 start ecosystem.config.js --env production
           '
