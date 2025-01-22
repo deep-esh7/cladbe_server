@@ -24,22 +24,16 @@ jobs:
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
-          ssh -i ~/.ssh/github_deploy root@194.164.149.231 '
+          ssh -i ~/.ssh/github_deploy root@194.164.149.231 "
             cd /root/cladbe_server &&
             git pull origin main &&
             npm install &&
             mkdir -p logs &&
-            echo '\''${{ secrets.ENV_VARS }}'\'' > temp.json &&
-            cat temp.json | tr -d "\r" | while IFS=":" read -r key value; do
-              if [ ! -z "$key" ]; then
-                clean_key=$(echo $key | tr -d '"{, ')
-                clean_value=$(echo $value | tr -d '"{, ')
-                echo "${clean_key}=${clean_value}" >> .env
-              fi
-            done &&
-            rm temp.json &&
-            if pm2 list | grep -q "cladbe_server"; then
+            echo '$ENV_VARS' > config.json &&
+            jq -r 'to_entries | .[] | .key + "=" + (.value | tostring)' config.json > .env &&
+            rm config.json &&
+            if pm2 list | grep -q 'cladbe_server'; then
               pm2 delete cladbe_server
             fi &&
             pm2 start ecosystem.config.js --env production
-          '
+          "
