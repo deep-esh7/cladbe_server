@@ -14,16 +14,10 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          # Setup SSH
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
           chmod 600 ~/.ssh/github_deploy
-
-          # Add host key
           ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
-
-          # Test connection with verbose output
-          ssh -v -i ~/.ssh/github_deploy root@194.164.149.231 'echo "Connection successful"'
 
       - name: Deploy
         if: success()
@@ -32,5 +26,9 @@ jobs:
             cd /root/cladbe_server &&
             git pull origin main &&
             npm install &&
-            pm2 restart all
+            if pm2 list | grep -q "cladbe"; then
+              pm2 restart cladbe
+            else
+              pm2 start src/index.js --name cladbe
+            fi
           '
