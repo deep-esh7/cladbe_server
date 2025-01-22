@@ -12,14 +12,15 @@ jobs:
 
       - name: Setup SSH
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          sudo mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > deploy_key
+          sudo mv deploy_key ~/.ssh/deploy_key
+          sudo chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} | sudo tee -a ~/.ssh/known_hosts
 
       - name: Deploy
         run: |
-          ssh -v -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} '
+          sudo ssh -v -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@${{ secrets.SSH_HOST }} '
             cd /root/cladbe_server &&
             git pull origin main &&
             npm install &&
