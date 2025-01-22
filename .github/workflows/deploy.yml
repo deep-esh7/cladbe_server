@@ -28,5 +28,5 @@ jobs:
           rsync -avz -e "ssh -i ~/.ssh/deploy_key" \
             --exclude '.git*' \
             --exclude 'node_modules' \
-            --delete ./ root@${{ secrets.SSH_HOST }}:/root/my-api/
+            --delete ./ root@${{ secrets.SSH_HOST }}:/root/cladbe_server/
           ssh -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} 'cd /root/my-api && npm install && pm2 restart all'
