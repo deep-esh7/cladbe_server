@@ -10,25 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Test SSH Connection
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
-          chmod 600 ~/.ssh/github_deploy
-          ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.SSH_HOST }} $(ssh-keyscan -t ed25519 ${{ secrets.SSH_HOST }} 2>/dev/null)" >> ~/.ssh/known_hosts
+
+      - name: Test Connection
+        run: |
+          echo "Testing direct connection..."
+          nc -zv ${{ secrets.SSH_HOST }} 22 || true
+          echo "Testing SSH connection..."
+          ssh -v -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} 'echo "Connected successfully"'
 
       - name: Deploy
         if: success()
         run: |
-          ssh -i ~/.ssh/github_deploy root@194.164.149.231 '
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} '
             cd /root/cladbe_server &&
             git pull origin main &&
             npm install &&
-            if pm2 list | grep -q "cladbe"; then
-              pm2 restart cladbe
-            else
-              pm2 start src/index.js --name cladbe
-            fi
+            pm2 restart all
           '
