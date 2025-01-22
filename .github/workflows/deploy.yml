@@ -29,6 +29,8 @@ jobs:
             git pull origin main &&
             npm install &&
             mkdir -p logs &&
+            # Install jq if not present
+            which jq || apt-get update && apt-get install -y jq &&
             echo '$ENV_VARS' > config.json &&
             jq -r 'to_entries | .[] | .key + "=" + (.value | tostring)' config.json > .env &&
             rm config.json &&
