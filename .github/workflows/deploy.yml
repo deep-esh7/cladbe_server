@@ -10,24 +10,25 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Setup SSH
+      - name: Test SSH Connection
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
+          # Setup SSH
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          echo "${{ secrets.SSH_HOST }} $(ssh-keyscan -t ed25519 ${{ secrets.SSH_HOST }} 2>/dev/null)" >> ~/.ssh/known_hosts
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
+          chmod 600 ~/.ssh/github_deploy
 
-      - name: Test Connection
-        run: |
-          echo "Testing direct connection..."
-          nc -zv ${{ secrets.SSH_HOST }} 22 || true
-          echo "Testing SSH connection..."
-          ssh -v -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} 'echo "Connected successfully"'
+          # Add host key
+          ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
+
+          # Test connection with verbose output
+          ssh -v -i ~/.ssh/github_deploy root@194.164.149.231 'echo "Connection successful"'
 
       - name: Deploy
         if: success()
         run: |
-          ssh -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} '
+          ssh -i ~/.ssh/github_deploy root@194.164.149.231 '
             cd /root/cladbe_server &&
             git pull origin main &&
             npm install &&
