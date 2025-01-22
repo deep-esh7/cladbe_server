@@ -2,7 +2,7 @@ name: Deploy to Server
 
 on:
   push:
-    branches: [main] # or your default branch
+    branches: [main]
 
 jobs:
   deploy:
@@ -10,22 +10,23 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install SSH Key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: "just-a-placeholder-so-we-dont-get-errors"
-
-      - name: Adding Known Hosts
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_HOST }}
+          SSH_PASSPHRASE: ${{ secrets.SSH_PASSPHRASE }}
         run: |
           mkdir -p ~/.ssh
-          touch ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          eval $(ssh-agent -s)
+          echo "$SSH_PASSPHRASE" | ssh-add ~/.ssh/deploy_key
 
-      - name: Deploy with rsync
+      - name: Deploy to Server
         run: |
-          echo "Starting deployment..."
-          rsync -avz --delete ./ root@${{ secrets.SSH_HOST }}:/root/my-api/
-          ssh root@${{ secrets.SSH_HOST }} 'cd /root/my-api && npm install && pm2 restart all'
-        env:
-          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude '.git*' \
+            --exclude 'node_modules' \
+            --delete ./ root@${{ secrets.SSH_HOST }}:/root/my-api/
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} 'cd /root/my-api && npm install && pm2 restart all'
