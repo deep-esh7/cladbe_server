@@ -12,15 +12,22 @@ jobs:
 
       - name: Setup SSH
         run: |
-          sudo mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > deploy_key
-          sudo mv deploy_key ~/.ssh/deploy_key
-          sudo chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} | sudo tee -a ~/.ssh/known_hosts
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.SSH_HOST }} $(ssh-keyscan -t ed25519 ${{ secrets.SSH_HOST }} 2>/dev/null)" >> ~/.ssh/known_hosts
+
+      - name: Test Connection
+        run: |
+          echo "Testing direct connection..."
+          nc -zv ${{ secrets.SSH_HOST }} 22 || true
+          echo "Testing SSH connection..."
+          ssh -v -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} 'echo "Connected successfully"'
 
       - name: Deploy
+        if: success()
         run: |
-          sudo ssh -v -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@${{ secrets.SSH_HOST }} '
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.SSH_HOST }} '
             cd /root/cladbe_server &&
             git pull origin main &&
             npm install &&
