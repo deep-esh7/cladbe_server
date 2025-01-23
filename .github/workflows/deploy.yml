@@ -23,7 +23,7 @@ jobs:
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && \
           apt-get update && \
           apt-get install -y jq && \
-          echo \"$ENV_VARS\" | jq -r 'to_entries | map(.key + \"=\" + (.value|tostring)) | .[]' > .env && \
+          echo \"$ENV_VARS\" | jq -r 'to_entries | map(.key + \"=\" + (.value|tostring)) | .[]' >> .env && \
           git pull origin main && \
           npm install && \
           pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production"
