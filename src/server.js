@@ -106,6 +106,7 @@ app.use((req, res, next) => {
   res.setHeader("X-Request-ID", requestId);
   next();
 });
+//empty
 
 // Health check route
 app.get("/health", (req, res) => {
@@ -675,5 +676,5 @@ module.exports = {
   initializeWebSocket,
   initializeDatabase,
   initializeSqlComponents,
-  gracefulShutdown, 
+  gracefulShutdown,
 };
