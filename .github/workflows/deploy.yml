@@ -1,9 +1,7 @@
 name: Deploy to Server
-
 on:
   push:
     branches: [main]
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -24,16 +22,12 @@ jobs:
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
-          ssh -i ~/.ssh/github_deploy root@194.164.149.231 "
-            cd /root/cladbe_server &&
-            git pull origin main &&
-            npm install &&
-            mkdir -p logs &&
-            echo '$ENV_VARS' > config.json &&
-            cat config.json | jq -r 'to_entries | map("\(.key)=\(.value)") | .[]' > .env &&
-            rm config.json &&
-            if pm2 list | grep -q 'cladbe_server'; then
-              pm2 delete cladbe_server
-            fi &&
-            pm2 start ecosystem.config.js --env production
-          "
+          ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && \
+          git pull origin main && \
+          npm install && \
+          mkdir -p logs && \
+          echo \"$ENV_VARS\" > config.json && \
+          cat config.json | jq -r 'to_entries | map(\"\(.key)=\(.value)\") | .[]' > .env && \
+          rm config.json && \
+          pm2 list | grep -q 'cladbe_server' && pm2 delete cladbe_server; \
+          pm2 start ecosystem.config.js --env production"
