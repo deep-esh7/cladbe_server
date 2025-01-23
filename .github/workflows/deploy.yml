@@ -7,27 +7,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
-      - name: Test SSH Connection
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
-          chmod 600 ~/.ssh/github_deploy
-          ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
-          ssh -v -i ~/.ssh/github_deploy root@194.164.149.231 'echo "Connection successful"'
-
       - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && \
+          echo \"$ENV_VARS\" > .env && \
           git pull origin main && \
           npm install && \
-          mkdir -p logs && \
-          echo \"$ENV_VARS\" > config.json && \
-          cat config.json | jq -r 'to_entries | map(\"\(.key)=\(.value)\") | .[]' > .env && \
-          rm config.json && \
-          pm2 list | grep -q 'cladbe_server' && pm2 delete cladbe_server; \
-          pm2 start ecosystem.config.js --env production"
+          pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production"
