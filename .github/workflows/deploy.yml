@@ -19,10 +19,8 @@ jobs:
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
-          echo "$ENV_VARS" | tr -d '\n\r' > .env.tmp
-          awk '{gsub(/\\n/,"\n")}1' .env.tmp > .env.formatted
-          ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && cat > .env" < .env.formatted
-          ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
+          ssh -i ~/.ssh/github_deploy root@194.164.149.231 'bash -c "cd /root/cladbe_server && \
+          echo \"$ENV_VARS\" | node -e \"process.stdin.setEncoding('utf8'); let data = ''; process.stdin.on('data', chunk => { data += chunk; }); process.stdin.on('end', () => { const env = JSON.parse(data); const output = Object.entries(env).map(([k,v]) => k + '=\"' + v + '\"').join('\n'); console.log(output); });\" > .env && \
           git pull origin main && \
           npm install && \
-          pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production'
+          pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production"'
