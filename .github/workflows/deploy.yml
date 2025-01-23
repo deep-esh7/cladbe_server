@@ -18,4 +18,9 @@ jobs:
       - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
-        run: 'ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && echo \"$ENV_VARS\" | tr -d '\''\n '\'' | sed '\''s/^{//;s/}$//;s/","/\\n/g;s/"//g;s/: /=/'\'' > .env && git pull origin main && npm install && pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production"'
+        run: |
+          ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
+          echo "$ENV_VARS" | python3 -c "import sys, json; env = json.load(sys.stdin); print(\"\n\".join([f\"{k}={v}\" for k,v in env.items()]))" > .env && \
+          git pull origin main && \
+          npm install && \
+          pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production'
