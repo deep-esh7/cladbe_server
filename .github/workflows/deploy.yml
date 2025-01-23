@@ -30,7 +30,7 @@ jobs:
             npm install &&
             mkdir -p logs &&
             echo '$ENV_VARS' > config.json &&
-            cat config.json | grep -o '\"[^\"]*\" *: *\"[^\"]*\"' | sed 's/\": \"/=/' | sed 's/\"//g' > .env &&
+            cat config.json | jq -r 'to_entries | map("\(.key)=\(.value)") | .[]' > .env &&
             rm config.json &&
             if pm2 list | grep -q 'cladbe_server'; then
               pm2 delete cladbe_server
