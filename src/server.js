@@ -664,10 +664,10 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 const PORT = process.env.PORT || 3000;
 
 // Start the server and export for testing
-const server = startServer();
+// const server = startServer();
 module.exports = {
   app,
-  server,
+  server: null, //
   initializeWebSocket,
   initializeDatabase,
   initializeSqlComponents,
