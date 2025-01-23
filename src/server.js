@@ -605,6 +605,7 @@ async function gracefulShutdown(signal) {
       websocket: false,
       database: false,
     };
+    //empty
 
     // Close WebSocket connections gracefully
     if (wsHandler) {
