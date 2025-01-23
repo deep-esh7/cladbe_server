@@ -1,0 +1,687 @@
+2025-01-23T18:09:33: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:09:33:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:09:33:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:09:33:     at doListen (node:net:2075:7)
+2025-01-23T18:09:33:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:09:33:   code: 'EADDRINUSE',
+2025-01-23T18:09:33:   errno: -48,
+2025-01-23T18:09:33:   syscall: 'listen',
+2025-01-23T18:09:33:   address: '0.0.0.0',
+2025-01-23T18:09:33:   port: 3000
+2025-01-23T18:09:33: }
+2025-01-23T18:09:33: Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:09:33:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:09:33:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:09:33:     at doListen (node:net:2075:7)
+2025-01-23T18:09:33:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:09:33:   code: 'EADDRINUSE',
+2025-01-23T18:09:33:   errno: -48,
+2025-01-23T18:09:33:   syscall: 'listen',
+2025-01-23T18:09:33:   address: '0.0.0.0',
+2025-01-23T18:09:33:   port: 3000
+2025-01-23T18:09:33: }
+2025-01-23T18:09:33: Stack: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:09:33:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:09:33:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:09:33:     at doListen (node:net:2075:7)
+2025-01-23T18:09:33:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+2025-01-23T18:09:59: [2025-01-23T12:39:59.712Z] ERROR: Query timeout reached
+2025-01-23T18:10:03: [2025-01-23T12:40:03.790Z] ERROR: Query timeout reached
+2025-01-23T18:10:03: Could not close connections in time, forcefully shutting down
+2025-01-23T18:10:11: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:10:11:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:10:11:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:10:11:     at doListen (node:net:2075:7)
+2025-01-23T18:10:11:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:10:11:   code: 'EADDRINUSE',
+2025-01-23T18:10:11:   errno: -48,
+2025-01-23T18:10:11:   syscall: 'listen',
+2025-01-23T18:10:11:   address: '0.0.0.0',
+2025-01-23T18:10:11:   port: 3000
+2025-01-23T18:10:11: }
+2025-01-23T18:10:11: Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:10:11:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:10:11:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:10:11:     at doListen (node:net:2075:7)
+2025-01-23T18:10:11:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:10:11:   code: 'EADDRINUSE',
+2025-01-23T18:10:11:   errno: -48,
+2025-01-23T18:10:11:   syscall: 'listen',
+2025-01-23T18:10:11:   address: '0.0.0.0',
+2025-01-23T18:10:11:   port: 3000
+2025-01-23T18:10:11: }
+2025-01-23T18:10:11: Stack: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:10:11:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:10:11:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:10:11:     at doListen (node:net:2075:7)
+2025-01-23T18:10:11:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+2025-01-23T18:10:35: [2025-01-23T12:40:35.442Z] ERROR: Query timeout reached
+2025-01-23T18:10:41: [2025-01-23T12:40:41.238Z] ERROR: Query timeout reached
+2025-01-23T18:10:41: Could not close connections in time, forcefully shutting down
+2025-01-23T18:10:47: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:10:47:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:10:47:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:10:47:     at doListen (node:net:2075:7)
+2025-01-23T18:10:47:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:10:47:   code: 'EADDRINUSE',
+2025-01-23T18:10:47:   errno: -48,
+2025-01-23T18:10:47:   syscall: 'listen',
+2025-01-23T18:10:47:   address: '0.0.0.0',
+2025-01-23T18:10:47:   port: 3000
+2025-01-23T18:10:47: }
+2025-01-23T18:10:47: Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:10:47:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:10:47:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:10:47:     at doListen (node:net:2075:7)
+2025-01-23T18:10:47:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:10:47:   code: 'EADDRINUSE',
+2025-01-23T18:10:47:   errno: -48,
+2025-01-23T18:10:47:   syscall: 'listen',
+2025-01-23T18:10:47:   address: '0.0.0.0',
+2025-01-23T18:10:47:   port: 3000
+2025-01-23T18:10:47: }
+2025-01-23T18:10:47: Stack: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:10:47:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:10:47:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:10:47:     at doListen (node:net:2075:7)
+2025-01-23T18:10:47:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+2025-01-23T18:11:13: [2025-01-23T12:41:13.047Z] ERROR: Query timeout reached
+2025-01-23T18:11:16: [2025-01-23T12:41:16.989Z] ERROR: Query timeout reached
+2025-01-23T18:11:17: Could not close connections in time, forcefully shutting down
+2025-01-23T18:11:17: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:17:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:17:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:17:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:17:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:17:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:17:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:17:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:17:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:17:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:17:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:17: Uncaught Exception: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:17:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:17:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:17:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:17:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:17:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:17:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:17:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:17:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:17:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:17:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:17: Stack: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:17:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:17:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:17:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:17:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:17:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:17:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:17:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:17:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:17:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:17:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:18: [2025-01-23T12:41:18.916Z] ERROR: Failed to acquire connection (attempt 1): Error: Cannot use a pool after calling end on the pool
+2025-01-23T18:11:18:     at BoundPool.connect (/Users/deepeshkumar/cladbe_server/node_modules/pg-pool/index.js:173:19)
+2025-01-23T18:11:18:     at SqlQueryExecutor.acquireConnection (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:265:40)
+2025-01-23T18:11:18:     at SqlQueryExecutor.executeQuery (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:115:27)
+2025-01-23T18:11:18:     at ClientSqlHelper.executeRead (/Users/deepeshkumar/cladbe_server/src/Helpers/clientSqlHelper.js:308:45)
+2025-01-23T18:11:18:     at initializeSqlComponents (/Users/deepeshkumar/cladbe_server/src/server.js:369:27)
+2025-01-23T18:11:18:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:11:18:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:531:28)
+2025-01-23T18:11:19: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:19:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:19:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:19:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:19:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:19:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:19:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:19:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:19:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:19:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:19:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:19: Uncaught Exception: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:19:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:19:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:19:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:19:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:19:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:19:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:19:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:19:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:19:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:19:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:19: Stack: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:19:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:19:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:19:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:19:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:19:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:19:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:19:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:19:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:19:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:19:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:20: Initial connection verification failed
+2025-01-23T18:11:21: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:21:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:21:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:21:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:21:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:21:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:21:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:21:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:21:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:21: Uncaught Exception: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:21:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:21:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:21:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:21:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:21:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:21:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:21:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:21:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:21: Stack: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:21:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:21:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:21:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:21:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:21:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:21:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:21:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:21:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:21:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:22: [2025-01-23T12:41:22.708Z] ERROR: Failed to acquire connection (attempt 1): Error: Cannot use a pool after calling end on the pool
+2025-01-23T18:11:22:     at BoundPool.connect (/Users/deepeshkumar/cladbe_server/node_modules/pg-pool/index.js:173:19)
+2025-01-23T18:11:22:     at SqlQueryExecutor.acquireConnection (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:265:40)
+2025-01-23T18:11:22:     at SqlQueryExecutor.executeQuery (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:115:27)
+2025-01-23T18:11:22:     at ClientSqlHelper.executeRead (/Users/deepeshkumar/cladbe_server/src/Helpers/clientSqlHelper.js:308:45)
+2025-01-23T18:11:22:     at initializeSqlComponents (/Users/deepeshkumar/cladbe_server/src/server.js:369:27)
+2025-01-23T18:11:22:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:11:22:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:531:28)
+2025-01-23T18:11:23: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:23:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:23:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:23:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:23:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:23:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:23:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:23:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:23:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:23:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:23:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:23: Uncaught Exception: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:23:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:23:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:23:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:23:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:23:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:23:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:23:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:23:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:23:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:23:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:23: Stack: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:23:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:23:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:23:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:23:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:23:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:23:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:23:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:23:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:23:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:23:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:24: [2025-01-23T12:41:24.902Z] ERROR: Failed to acquire connection (attempt 1): Error: Cannot use a pool after calling end on the pool
+2025-01-23T18:11:24:     at BoundPool.connect (/Users/deepeshkumar/cladbe_server/node_modules/pg-pool/index.js:173:19)
+2025-01-23T18:11:24:     at SqlQueryExecutor.acquireConnection (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:265:40)
+2025-01-23T18:11:24:     at SqlQueryExecutor.executeQuery (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:115:27)
+2025-01-23T18:11:24:     at ClientSqlHelper.executeRead (/Users/deepeshkumar/cladbe_server/src/Helpers/clientSqlHelper.js:308:45)
+2025-01-23T18:11:24:     at initializeSqlComponents (/Users/deepeshkumar/cladbe_server/src/server.js:369:27)
+2025-01-23T18:11:24:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:11:24:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:531:28)
+2025-01-23T18:11:26: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:26:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:26:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:26:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:26:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:26:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:26:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:26:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:26:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:26:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:26:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:26: Uncaught Exception: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:26:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:26:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:26:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:26:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:26:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:26:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:26:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:26:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:26:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:26:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:26: Stack: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:26:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:26:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:26:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:26:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:26:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:26:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:26:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:26:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:26:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:26:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:27: Initial connection verification failed
+2025-01-23T18:11:29: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:29:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:29:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:29:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:29:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:29:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:29:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:29:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:29:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:29:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:29:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:29: Uncaught Exception: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:29:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:29:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:29:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:29:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:29:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:29:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:29:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:29:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:29:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:29:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:29: Stack: ReferenceError: initializeWebSocket is not defined
+2025-01-23T18:11:29:     at Object.<anonymous> (/Users/deepeshkumar/cladbe_server/src/server.js:675:3)
+2025-01-23T18:11:29:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:29:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:29:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:29:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:29:     at Object.<anonymous> (/Users/deepeshkumar/.npm-global/lib/node_modules/pm2/lib/ProcessContainerFork.js:33:23)
+2025-01-23T18:11:29:     at Module._compile (node:internal/modules/cjs/loader:1376:14)
+2025-01-23T18:11:29:     at Module._extensions..js (node:internal/modules/cjs/loader:1435:10)
+2025-01-23T18:11:29:     at Module.load (node:internal/modules/cjs/loader:1207:32)
+2025-01-23T18:11:29:     at Module._load (node:internal/modules/cjs/loader:1023:12)
+2025-01-23T18:11:31: [2025-01-23T12:41:31.861Z] ERROR: Failed to acquire connection (attempt 1): Error: Cannot use a pool after calling end on the pool
+2025-01-23T18:11:31:     at BoundPool.connect (/Users/deepeshkumar/cladbe_server/node_modules/pg-pool/index.js:173:19)
+2025-01-23T18:11:31:     at SqlQueryExecutor.acquireConnection (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:265:40)
+2025-01-23T18:11:31:     at SqlQueryExecutor.executeQuery (/Users/deepeshkumar/cladbe_server/src/Helpers/sqlQueryExecutor.js:115:27)
+2025-01-23T18:11:31:     at ClientSqlHelper.executeRead (/Users/deepeshkumar/cladbe_server/src/Helpers/clientSqlHelper.js:308:45)
+2025-01-23T18:11:31:     at initializeSqlComponents (/Users/deepeshkumar/cladbe_server/src/server.js:369:27)
+2025-01-23T18:11:31:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:11:31:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:531:28)
+2025-01-23T18:11:40: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:11:40:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:11:40:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:11:40:     at doListen (node:net:2075:7)
+2025-01-23T18:11:40:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:11:40:   code: 'EADDRINUSE',
+2025-01-23T18:11:40:   errno: -48,
+2025-01-23T18:11:40:   syscall: 'listen',
+2025-01-23T18:11:40:   address: '0.0.0.0',
+2025-01-23T18:11:40:   port: 3000
+2025-01-23T18:11:40: }
+2025-01-23T18:11:40: Port 3000 is already in use
+2025-01-23T18:11:53: Database initialization failed: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:11:53:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:11:53:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:11:53:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:11:53:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:11:53: Stack trace: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:11:53:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:11:53:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:11:53:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:11:53:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:11:53: Unhandled database initialization error: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:11:53:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:11:53:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:11:53:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:11:53:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:11:53: Failed to start server: Error: Failed to initialize database
+2025-01-23T18:11:53:     at startServer (/Users/deepeshkumar/cladbe_server/src/server.js:539:13)
+2025-01-23T18:11:53:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:02: Database initialization failed: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:02:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:02:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:02:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:02:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:02: Stack trace: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:02:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:02:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:02:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:02:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:02: Unhandled database initialization error: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:02:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:02:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:02:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:02:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:02: Failed to start server: Error: Failed to initialize database
+2025-01-23T18:12:02:     at startServer (/Users/deepeshkumar/cladbe_server/src/server.js:539:13)
+2025-01-23T18:12:02:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:08: Database initialization failed: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:08:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:08:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:08:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:08:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:08: Stack trace: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:08:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:08:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:08:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:08:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:08: Unhandled database initialization error: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:08:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:08:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:08:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:08:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:08: Failed to start server: Error: Failed to initialize database
+2025-01-23T18:12:08:     at startServer (/Users/deepeshkumar/cladbe_server/src/server.js:539:13)
+2025-01-23T18:12:08:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:14: Database initialization failed: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:14:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:14:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:14:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:14:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:14: Stack trace: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:14:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:14:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:14:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:14:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:14: Unhandled database initialization error: Error: Failed to create leads table: tuple concurrently updated
+2025-01-23T18:12:14:     at TableHelper.createLeadsSearchTable (/Users/deepeshkumar/cladbe_server/src/Helpers/leadsTableHelper.js:188:13)
+2025-01-23T18:12:14:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:12:14:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:476:5)
+2025-01-23T18:12:14:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:12:31: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:12:31:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:12:31:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:12:31:     at doListen (node:net:2075:7)
+2025-01-23T18:12:31:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:12:31:   code: 'EADDRINUSE',
+2025-01-23T18:12:31:   errno: -48,
+2025-01-23T18:12:31:   syscall: 'listen',
+2025-01-23T18:12:31:   address: '0.0.0.0',
+2025-01-23T18:12:31:   port: 3000
+2025-01-23T18:12:31: }
+2025-01-23T18:12:31: Port 3000 is already in use
+2025-01-23T18:12:38: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:12:38:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:12:38:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:12:38:     at doListen (node:net:2075:7)
+2025-01-23T18:12:38:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:12:38:   code: 'EADDRINUSE',
+2025-01-23T18:12:38:   errno: -48,
+2025-01-23T18:12:38:   syscall: 'listen',
+2025-01-23T18:12:38:   address: '0.0.0.0',
+2025-01-23T18:12:38:   port: 3000
+2025-01-23T18:12:38: }
+2025-01-23T18:12:38: Port 3000 is already in use
+2025-01-23T18:12:46: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:12:46:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:12:46:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:12:46:     at doListen (node:net:2075:7)
+2025-01-23T18:12:46:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:12:46:   code: 'EADDRINUSE',
+2025-01-23T18:12:46:   errno: -48,
+2025-01-23T18:12:46:   syscall: 'listen',
+2025-01-23T18:12:46:   address: '0.0.0.0',
+2025-01-23T18:12:46:   port: 3000
+2025-01-23T18:12:46: }
+2025-01-23T18:12:46: Port 3000 is already in use
+2025-01-23T18:12:52: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:12:52:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:12:52:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:12:52:     at doListen (node:net:2075:7)
+2025-01-23T18:12:52:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:12:52:   code: 'EADDRINUSE',
+2025-01-23T18:12:52:   errno: -48,
+2025-01-23T18:12:52:   syscall: 'listen',
+2025-01-23T18:12:52:   address: '0.0.0.0',
+2025-01-23T18:12:52:   port: 3000
+2025-01-23T18:12:52: }
+2025-01-23T18:12:52: Port 3000 is already in use
+2025-01-23T18:12:59: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:12:59:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:12:59:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:12:59:     at doListen (node:net:2075:7)
+2025-01-23T18:12:59:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:12:59:   code: 'EADDRINUSE',
+2025-01-23T18:12:59:   errno: -48,
+2025-01-23T18:12:59:   syscall: 'listen',
+2025-01-23T18:12:59:   address: '0.0.0.0',
+2025-01-23T18:12:59:   port: 3000
+2025-01-23T18:12:59: }
+2025-01-23T18:12:59: Port 3000 is already in use
+2025-01-23T18:13:05: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:13:05:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:13:05:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:13:05:     at doListen (node:net:2075:7)
+2025-01-23T18:13:05:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:13:05:   code: 'EADDRINUSE',
+2025-01-23T18:13:05:   errno: -48,
+2025-01-23T18:13:05:   syscall: 'listen',
+2025-01-23T18:13:05:   address: '0.0.0.0',
+2025-01-23T18:13:05:   port: 3000
+2025-01-23T18:13:05: }
+2025-01-23T18:13:05: Port 3000 is already in use
+2025-01-23T18:13:11: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:13:11:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:13:11:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:13:11:     at doListen (node:net:2075:7)
+2025-01-23T18:13:11:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:13:11:   code: 'EADDRINUSE',
+2025-01-23T18:13:11:   errno: -48,
+2025-01-23T18:13:11:   syscall: 'listen',
+2025-01-23T18:13:11:   address: '0.0.0.0',
+2025-01-23T18:13:11:   port: 3000
+2025-01-23T18:13:11: }
+2025-01-23T18:13:11: Port 3000 is already in use
+2025-01-23T18:13:18: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:13:18:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:13:18:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:13:18:     at doListen (node:net:2075:7)
+2025-01-23T18:13:18:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:13:18:   code: 'EADDRINUSE',
+2025-01-23T18:13:18:   errno: -48,
+2025-01-23T18:13:18:   syscall: 'listen',
+2025-01-23T18:13:18:   address: '0.0.0.0',
+2025-01-23T18:13:18:   port: 3000
+2025-01-23T18:13:18: }
+2025-01-23T18:13:18: Port 3000 is already in use
+2025-01-23T18:13:25: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:13:25:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:13:25:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:13:25:     at doListen (node:net:2075:7)
+2025-01-23T18:13:25:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:13:25:   code: 'EADDRINUSE',
+2025-01-23T18:13:25:   errno: -48,
+2025-01-23T18:13:25:   syscall: 'listen',
+2025-01-23T18:13:25:   address: '0.0.0.0',
+2025-01-23T18:13:25:   port: 3000
+2025-01-23T18:13:25: }
+2025-01-23T18:13:25: Port 3000 is already in use
+2025-01-23T18:13:34: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:13:34:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:13:34:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:13:34:     at doListen (node:net:2075:7)
+2025-01-23T18:13:34:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:13:34:   code: 'EADDRINUSE',
+2025-01-23T18:13:34:   errno: -48,
+2025-01-23T18:13:34:   syscall: 'listen',
+2025-01-23T18:13:34:   address: '0.0.0.0',
+2025-01-23T18:13:34:   port: 3000
+2025-01-23T18:13:34: }
+2025-01-23T18:13:34: Port 3000 is already in use
+2025-01-23T18:13:43: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:13:43:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:13:43:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:13:43:     at doListen (node:net:2075:7)
+2025-01-23T18:13:43:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:13:43:   code: 'EADDRINUSE',
+2025-01-23T18:13:43:   errno: -48,
+2025-01-23T18:13:43:   syscall: 'listen',
+2025-01-23T18:13:43:   address: '0.0.0.0',
+2025-01-23T18:13:43:   port: 3000
+2025-01-23T18:13:43: }
+2025-01-23T18:13:43: Port 3000 is already in use
+2025-01-23T18:13:54: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:13:54:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:13:54:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:13:54:     at doListen (node:net:2075:7)
+2025-01-23T18:13:54:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:13:54:   code: 'EADDRINUSE',
+2025-01-23T18:13:54:   errno: -48,
+2025-01-23T18:13:54:   syscall: 'listen',
+2025-01-23T18:13:54:   address: '0.0.0.0',
+2025-01-23T18:13:54:   port: 3000
+2025-01-23T18:13:54: }
+2025-01-23T18:13:54: Port 3000 is already in use
+2025-01-23T18:14:09: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:14:09:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:14:09:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:14:09:     at doListen (node:net:2075:7)
+2025-01-23T18:14:09:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:14:09:   code: 'EADDRINUSE',
+2025-01-23T18:14:09:   errno: -48,
+2025-01-23T18:14:09:   syscall: 'listen',
+2025-01-23T18:14:09:   address: '0.0.0.0',
+2025-01-23T18:14:09:   port: 3000
+2025-01-23T18:14:09: }
+2025-01-23T18:14:09: Port 3000 is already in use
+2025-01-23T18:14:28: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:14:28:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:14:28:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:14:28:     at doListen (node:net:2075:7)
+2025-01-23T18:14:28:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:14:28:   code: 'EADDRINUSE',
+2025-01-23T18:14:28:   errno: -48,
+2025-01-23T18:14:28:   syscall: 'listen',
+2025-01-23T18:14:28:   address: '0.0.0.0',
+2025-01-23T18:14:28:   port: 3000
+2025-01-23T18:14:28: }
+2025-01-23T18:14:28: Port 3000 is already in use
+2025-01-23T18:14:46: Database initialization failed: Error: Cannot use a pool after calling end on the pool
+2025-01-23T18:14:46:     at /Users/deepeshkumar/cladbe_server/node_modules/pg-pool/index.js:45:11
+2025-01-23T18:14:46:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:14:46:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:438:5)
+2025-01-23T18:14:46:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:14:46: Stack trace: Error: Cannot use a pool after calling end on the pool
+2025-01-23T18:14:46:     at /Users/deepeshkumar/cladbe_server/node_modules/pg-pool/index.js:45:11
+2025-01-23T18:14:46:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:14:46:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:438:5)
+2025-01-23T18:14:46:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:14:46: Unhandled database initialization error: Error: Cannot use a pool after calling end on the pool
+2025-01-23T18:14:46:     at /Users/deepeshkumar/cladbe_server/node_modules/pg-pool/index.js:45:11
+2025-01-23T18:14:46:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:14:46:     at async initializeDatabase (/Users/deepeshkumar/cladbe_server/src/server.js:438:5)
+2025-01-23T18:14:46:     at async startServer (/Users/deepeshkumar/cladbe_server/src/server.js:537:27)
+2025-01-23T18:14:46: Failed to start server: Error: Failed to initialize database
+2025-01-23T18:14:46:     at startServer (/Users/deepeshkumar/cladbe_server/src/server.js:539:13)
+2025-01-23T18:14:46:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-01-23T18:16:15: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:15:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:15:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:15:     at doListen (node:net:2075:7)
+2025-01-23T18:16:15:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:15:   code: 'EADDRINUSE',
+2025-01-23T18:16:15:   errno: -48,
+2025-01-23T18:16:15:   syscall: 'listen',
+2025-01-23T18:16:15:   address: '0.0.0.0',
+2025-01-23T18:16:15:   port: 3000
+2025-01-23T18:16:15: }
+2025-01-23T18:16:15: Port 3000 is already in use
+2025-01-23T18:16:21: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:21:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:21:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:21:     at doListen (node:net:2075:7)
+2025-01-23T18:16:21:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:21:   code: 'EADDRINUSE',
+2025-01-23T18:16:21:   errno: -48,
+2025-01-23T18:16:21:   syscall: 'listen',
+2025-01-23T18:16:21:   address: '0.0.0.0',
+2025-01-23T18:16:21:   port: 3000
+2025-01-23T18:16:21: }
+2025-01-23T18:16:21: Port 3000 is already in use
+2025-01-23T18:16:27: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:27:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:27:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:27:     at doListen (node:net:2075:7)
+2025-01-23T18:16:27:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:27:   code: 'EADDRINUSE',
+2025-01-23T18:16:27:   errno: -48,
+2025-01-23T18:16:27:   syscall: 'listen',
+2025-01-23T18:16:27:   address: '0.0.0.0',
+2025-01-23T18:16:27:   port: 3000
+2025-01-23T18:16:27: }
+2025-01-23T18:16:27: Port 3000 is already in use
+2025-01-23T18:16:33: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:33:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:33:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:33:     at doListen (node:net:2075:7)
+2025-01-23T18:16:33:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:33:   code: 'EADDRINUSE',
+2025-01-23T18:16:33:   errno: -48,
+2025-01-23T18:16:33:   syscall: 'listen',
+2025-01-23T18:16:33:   address: '0.0.0.0',
+2025-01-23T18:16:33:   port: 3000
+2025-01-23T18:16:33: }
+2025-01-23T18:16:33: Port 3000 is already in use
+2025-01-23T18:16:40: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:40:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:40:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:40:     at doListen (node:net:2075:7)
+2025-01-23T18:16:40:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:40:   code: 'EADDRINUSE',
+2025-01-23T18:16:40:   errno: -48,
+2025-01-23T18:16:40:   syscall: 'listen',
+2025-01-23T18:16:40:   address: '0.0.0.0',
+2025-01-23T18:16:40:   port: 3000
+2025-01-23T18:16:40: }
+2025-01-23T18:16:40: Port 3000 is already in use
+2025-01-23T18:16:46: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:46:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:46:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:46:     at doListen (node:net:2075:7)
+2025-01-23T18:16:46:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:46:   code: 'EADDRINUSE',
+2025-01-23T18:16:46:   errno: -48,
+2025-01-23T18:16:46:   syscall: 'listen',
+2025-01-23T18:16:46:   address: '0.0.0.0',
+2025-01-23T18:16:46:   port: 3000
+2025-01-23T18:16:46: }
+2025-01-23T18:16:46: Port 3000 is already in use
+2025-01-23T18:16:52: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:52:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:52:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:52:     at doListen (node:net:2075:7)
+2025-01-23T18:16:52:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:52:   code: 'EADDRINUSE',
+2025-01-23T18:16:52:   errno: -48,
+2025-01-23T18:16:52:   syscall: 'listen',
+2025-01-23T18:16:52:   address: '0.0.0.0',
+2025-01-23T18:16:52:   port: 3000
+2025-01-23T18:16:52: }
+2025-01-23T18:16:52: Port 3000 is already in use
+2025-01-23T18:16:59: Server error: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+2025-01-23T18:16:59:     at Server.setupListenHandle [as _listen2] (node:net:1872:16)
+2025-01-23T18:16:59:     at listenInCluster (node:net:1920:12)
+2025-01-23T18:16:59:     at doListen (node:net:2075:7)
+2025-01-23T18:16:59:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+2025-01-23T18:16:59:   code: 'EADDRINUSE',
+2025-01-23T18:16:59:   errno: -48,
+2025-01-23T18:16:59:   syscall: 'listen',
+2025-01-23T18:16:59:   address: '0.0.0.0',
+2025-01-23T18:16:59:   port: 3000
+2025-01-23T18:16:59: }
+2025-01-23T18:16:59: Port 3000 is already in use
+2025-01-23T18:17:59: [2025-01-23T12:47:59.566Z] ERROR: Query timeout reached
+2025-01-23T18:18:03: [2025-01-23T12:48:03.518Z] ERROR: Query timeout reached
