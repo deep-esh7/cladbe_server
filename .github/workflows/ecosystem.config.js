@@ -21,12 +21,12 @@ module.exports = {
       error_file: "logs/err.log",
       out_file: "logs/out.log",
       time: true,
-      // Add this to ensure newlines are preserved in environment variables
-      env_production: {
-        NODE_ENV: "production",
-      },
+      autorestart: true,
+      max_memory_restart: "300M",
+      kill_timeout: 3000,
+      exp_backoff_restart_delay: 100,
+      max_restarts: 10,
+      restart_delay: 4000,
     },
   ],
 };
-
-//empty
