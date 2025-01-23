@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "cladbe_server",
       script: "./src/server.js",
-      watch: true,
+      watch: false,
       env: {
         NODE_ENV: "production",
         PORT: 3000,
