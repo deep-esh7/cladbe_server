@@ -2,7 +2,7 @@ const admin = require("firebase-admin");
 const path = require("path");
 
 // Add debug logging
-const envPath = path.resolve(__dirname, "environment/.env");
+const envPath = path.resolve(__dirname, "/environment/.env");
 console.log("Loading env from:", envPath);
 
 require("dotenv").config({
