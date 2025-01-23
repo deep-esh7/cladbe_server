@@ -7,6 +7,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
+          chmod 600 ~/.ssh/github_deploy
+          ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
+
       - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
