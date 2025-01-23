@@ -120,7 +120,7 @@ app.get("/health", (req, res) => {
   //   memory: process.memoryUsage(),
   // };
 
-  res.status(200).json("wuhuuuuu chall gya mainaaaaaaaaaaaaaaa");
+  res.status(200).json("wuhuuuuu chall gya totaaaaaa");
 });
 
 // Routes

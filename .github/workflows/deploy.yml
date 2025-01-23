@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      
       - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -15,6 +16,7 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
+          
       - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
@@ -22,9 +24,39 @@ jobs:
           echo "$ENV_VARS" > .env.tmp
 
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
+          # Stop PM2 process
+          pm2 stop cladbe_server || true && \
+          pm2 delete cladbe_server || true && \
+          
+          # Backup env file
+          cp .env .env.backup || true && \
+          
+          # Clean untracked files
+          rm -f ecosystem.config.js && \
+          rm -rf logs/* && \
+          git checkout -- . && \
+          git clean -fd && \
+          
+          # Pull changes and restore env
           git pull origin main && \
+          mv .env.backup .env && \
+          
+          # Install dependencies
           npm install && \
-          pm2 stop ecosystem.config.js || true && \
-          pm2 delete ecosystem.config.js || true && \
-          pm2 flush && \
-          pm2 start ecosystem.config.js --env production --no-autorestart'
+          
+          # Start application with PM2
+          pm2 start src/server.js \
+          --name cladbe_server \
+          --watch false \
+          --exp-backoff-restart-delay=100 \
+          --max-memory-restart=300M \
+          --restart-delay=4000 \
+          --max-restarts=5 \
+          --log-type=json \
+          --merge-logs \
+          --output=/dev/null \
+          --error=/dev/null \
+          --env production && \
+          
+          # Save PM2 process list
+          pm2 save'
