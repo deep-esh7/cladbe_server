@@ -540,7 +540,7 @@ async function startServer() {
     }
 
     // Start server with increased timeouts for long-running operations
-    const server = app.listen(PORT, () => {
+    const server = app.listen(PORT, "0.0.0.0", () => {
       console.log("=".repeat(50));
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
@@ -553,6 +553,12 @@ async function startServer() {
       console.log(`Process ID: ${process.pid}`);
       console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
       console.log("=".repeat(50));
+    });
+
+    server.on("listening", () => {
+      console.log(
+        `Server bound to ${server.address().address}:${server.address().port}`
+      );
     });
 
     // Increase server timeouts
