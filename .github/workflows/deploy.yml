@@ -19,8 +19,9 @@ jobs:
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
-          echo "$ENV_VARS" > .env.tmp
-          ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && cat > .env" < .env.tmp
+          echo "$ENV_VARS" | tr -d '\n\r' > .env.tmp
+          awk '{gsub(/\\n/,"\n")}1' .env.tmp > .env.formatted
+          ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && cat > .env" < .env.formatted
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
           git pull origin main && \
           npm install && \
