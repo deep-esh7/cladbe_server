@@ -20,8 +20,19 @@ jobs:
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
+          # Convert each key-value pair to env format but keep FIREBASE_CONFIG as JSON
+          env_file_content=$(echo "$ENV_VARS" | sed 's/{//' | sed 's/}//' | tr ',' '\n' | sed 's/^[[:space:]]*//' | \
+          awk -F': ' '{
+            if ($1 ~ /FIREBASE_CONFIG/) {
+              print $1"="$2
+              next
+            }
+            gsub(/\"/, "", $1)
+            gsub(/\"/, "", $2)
+            print $1"="$2
+          }')
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && \
-          echo \"$ENV_VARS\" | sed 's/{//' | sed 's/}//' | tr ',' '\n' | sed 's/\"//g' | sed 's/: /=/' > .env && \
+          echo \"$env_file_content\" > .env && \
           git pull origin main && \
           npm install && \
           pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production"
