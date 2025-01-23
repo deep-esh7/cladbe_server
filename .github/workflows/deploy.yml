@@ -15,12 +15,19 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
+      - name: Debug ENV_VARS
+        env:
+          ENV_VARS: ${{ secrets.ENV_VARS }}
+        run: |
+          echo "ENV_VARS content:"
+          echo "$ENV_VARS"
       - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
           echo "$ENV_VARS" > .env && \
+          cat .env && \
           git pull origin main && \
           npm install && \
           pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production'
