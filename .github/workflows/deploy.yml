@@ -19,8 +19,8 @@ jobs:
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
-          echo "$ENV_VARS" | sed 's/\\n/\n/g' > .env.tmp
-          scp .env.tmp root@194.164.149.231:/root/cladbe_server/.env
+          echo "$ENV_VARS" > .env.tmp
+          scp -i ~/.ssh/github_deploy .env.tmp root@194.164.149.231:/root/cladbe_server/.env
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
           git pull origin main && \
           npm install && \
