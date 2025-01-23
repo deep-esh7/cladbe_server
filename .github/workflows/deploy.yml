@@ -20,7 +20,7 @@ jobs:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
-          echo "$ENV_VARS" | python3 -c "import sys, json; env = json.load(sys.stdin); print(\"\n\".join([f\"{k}={v}\" for k,v in env.items()]))" > .env && \
+          echo "$ENV_VARS" > .env && \
           git pull origin main && \
           npm install && \
           pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production'
