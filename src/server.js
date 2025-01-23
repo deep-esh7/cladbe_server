@@ -109,18 +109,18 @@ app.use((req, res, next) => {
 
 // Health check route
 app.get("/health", (req, res) => {
-  const healthInfo = {
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    service: "leads-api",
-    environment: process.env.NODE_ENV || "development",
-    dbConnection: !!db.pool,
-    webSocketStatus: wsHandler ? "connected" : "disconnected",
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-  };
+  // const healthInfo = {
+  //   status: "ok",
+  //   timestamp: new Date().toISOString(),
+  //   service: "leads-api",
+  //   environment: process.env.NODE_ENV || "development",
+  //   dbConnection: !!db.pool,
+  //   webSocketStatus: wsHandler ? "connected" : "disconnected",
+  //   uptime: process.uptime(),
+  //   memory: process.memoryUsage(),
+  // };
 
-  res.status(200).json(healthInfo);
+  res.status(200).json("wuhuuuuu chall gya main");
 });
 
 // Routes
