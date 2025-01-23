@@ -3,7 +3,7 @@ const { Pool } = require("pg");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config({
-  path: path.resolve(__dirname, "../../environment/.env"),
+  path: path.resolve(__dirname, "../environment/.env"),
   debug: process.env.DEBUG,
 });
 
