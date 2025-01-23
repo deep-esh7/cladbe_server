@@ -7,7 +7,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
       - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -17,14 +16,16 @@ jobs:
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 194.164.149.231 >> ~/.ssh/known_hosts
 
-      - name: Deploy and Debug
+      - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && \
-          echo \"$ENV_VARS\" > .env && \
-          echo 'Content of .env:' && \
-          cat .env && \
+          apt-get update && \
+          apt-get install -y jq && \
+          echo \"$ENV_VARS\" > config.json && \
+          jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' config.json > .env && \
+          rm config.json && \
           git pull origin main && \
           npm install && \
           pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production"
