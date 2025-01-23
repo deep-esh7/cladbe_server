@@ -20,9 +20,9 @@ jobs:
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
-          env_vars_escaped=$(echo "$ENV_VARS" | sed 's/"/\\"/g')
+          env_string=$(echo "$ENV_VARS" | sed 's/\\//g' | tr -d '\n' | sed 's/^{//; s/}$//')
           ssh -i ~/.ssh/github_deploy root@194.164.149.231 "cd /root/cladbe_server && \
-          echo '$env_vars_escaped' | sed 's/[{},]//g' | sed 's/\": \"/=/g' | sed 's/\"//g' > .env && \
+          echo \"$env_string\" | tr ',' '\n' | sed 's/^ *\"//g' | sed 's/\": \"/=/g' | sed 's/\"$//g' > .env && \
           git pull origin main && \
           npm install && \
           pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production"
