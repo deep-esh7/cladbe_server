@@ -1,29 +1,12 @@
 const admin = require("firebase-admin");
+const path = require("path");
+require("dotenv").config({
+  path: path.resolve(__dirname, "../../environment/.env"),
+});
 
-let serviceAccount;
 try {
-  console.log("Initializing Firebase Admin...");
+  const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 
-  if (!process.env.FIREBASE_CONFIG) {
-    throw new Error("FIREBASE_CONFIG environment variable is not set");
-  }
-
-  // Parse the Firebase config from environment variable
-  try {
-    serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-  } catch (parseError) {
-    console.error("Failed to parse FIREBASE_CONFIG:", parseError);
-    throw new Error("Invalid FIREBASE_CONFIG format");
-  }
-
-  // Log config structure for debugging (not actual values)
-  console.log("Firebase Config Structure:", {
-    hasProjectId: !!serviceAccount.project_id,
-    hasPrivateKey: !!serviceAccount.private_key,
-    hasClientEmail: !!serviceAccount.client_email,
-  });
-
-  // Initialize Firebase Admin SDK
   const app = admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     storageBucket: "gs://cladbee-6554e.appspot.com",
