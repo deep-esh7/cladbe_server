@@ -120,7 +120,7 @@ app.get("/health", (req, res) => {
   //   memory: process.memoryUsage(),
   // };
 
-  res.status(200).json("wuhuuuuu chall gya main");
+  res.status(200).json("wuhuuuuu chall gya mainaaaaaaaaaaaaaaa");
 });
 
 // Routes
@@ -393,31 +393,31 @@ async function handleSqlInitializationError(error) {
 }
 
 // Initialize WebSocket
-// async function initializeWebSocket(server) {
-//   try {
-//     console.log("Initializing WebSocket handler...");
+async function initializeWebSocket(server) {
+  try {
+    console.log("Initializing WebSocket handler...");
 
-//     // Initialize WebSocket handler with PostgreSQL pool
-//     wsHandler = new WebSocketHandler(server, clientSqlHelper, db.pool);
+    // Initialize WebSocket handler with PostgreSQL pool
+    wsHandler = new WebSocketHandler(server, clientSqlHelper, db.pool);
 
-//     // Setup notification listener for real-time updates
-//     await wsHandler.setupNotificationListener();
+    // Setup notification listener for real-time updates
+    await wsHandler.setupNotificationListener();
 
-//     // Add error handling for the WebSocket server
-//     wsHandler.wss.on("error", (error) => {
-//       console.error("WebSocket server error:", error);
-//     });
+    // Add error handling for the WebSocket server
+    wsHandler.wss.on("error", (error) => {
+      console.error("WebSocket server error:", error);
+    });
 
-//     console.log("WebSocket handler initialized successfully");
-//     return true;
-//   } catch (error) {
-//     console.error("Failed to initialize WebSocket handler:", error);
-//     if (error.code === "EADDRINUSE") {
-//       console.error("WebSocket port is already in use");
-//     }
-//     return false;
-//   }
-// }
+    console.log("WebSocket handler initialized successfully");
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize WebSocket handler:", error);
+    if (error.code === "EADDRINUSE") {
+      console.error("WebSocket port is already in use");
+    }
+    return false;
+  }
+}
 
 // 2. Database Initialization
 async function initializeDatabase() {
@@ -566,10 +566,10 @@ async function startServer() {
     server.keepAliveTimeout = 65000;
 
     // Initialize WebSocket after server starts
-    // const wsInitialized = await initializeWebSocket(server);
-    // if (!wsInitialized) {
-    //   throw new Error("Failed to initialize WebSocket");
-    // }
+    const wsInitialized = await initializeWebSocket(server);
+    if (!wsInitialized) {
+      throw new Error("Failed to initialize WebSocket");
+    }
 
     // Enhanced error handling for server
     server.on("error", (error) => {
@@ -672,7 +672,7 @@ const server = startServer().catch((err) => {
 module.exports = {
   app,
   server,
-  // initializeWebSocket,
+  initializeWebSocket,
   initializeDatabase,
   initializeSqlComponents,
   gracefulShutdown, 
