@@ -178,6 +178,7 @@ class LeadSearchController {
       const result = await this.leadService.createLead(sanitizedData);
       successResponse(res, result, "Lead created successfully", 201);
     } catch (error) {
+      //
       errorResponse(res, error, "Failed to create lead");
     }
   };
