@@ -8,7 +8,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # Add this step first
       - name: Install expect
         run: sudo apt-get install -y expect
 
@@ -18,26 +17,42 @@ jobs:
           SSH_PASSPHRASE: ${{ secrets.SSH_PASSPHRASE }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
+          # Debug: Check if SSH_PRIVATE_KEY is set
+          echo "SSH key length: $(echo "$SSH_PRIVATE_KEY" | wc -c)"
+
+          # Write the key with explicit EOF markers
+          cat << 'EOF' > ~/.ssh/github_deploy
+          $SSH_PRIVATE_KEY
+          EOF
+
           chmod 600 ~/.ssh/github_deploy
+
+          # Debug: Verify key file exists and content
+          echo "=== Key File Info ==="
+          ls -la ~/.ssh/github_deploy
+          echo "Key file size: $(wc -c < ~/.ssh/github_deploy)"
+
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
           # Debug: Print key info
           echo "=== Key Info ==="
-          ssh-keygen -l -f ~/.ssh/github_deploy
+          ssh-keygen -l -f ~/.ssh/github_deploy || echo "Failed to read key"
 
           # Start ssh-agent
           eval $(ssh-agent -s)
 
-          # Add key using expect
-          expect << 'EOF'
+          # Add key using sshpass
+          expect << 'EOD'
             spawn ssh-add ~/.ssh/github_deploy
             expect "Enter passphrase"
-            send "$env(SSH_PASSPHRASE)\n"
+            send "${SSH_PASSPHRASE}\r"
             expect eof
-          EOF
+          EOD
 
-          # Test SSH connection
+          # List added keys
+          ssh-add -l
+
+          # Test SSH connection with debug
           ssh -v -o StrictHostKeyChecking=no root@80.65.208.176 'echo "Test connection"'
 
       - name: Deploy
@@ -45,14 +60,16 @@ jobs:
           ENV_VARS: ${{ secrets.ENV_VARS }}
           SSH_PASSPHRASE: ${{ secrets.SSH_PASSPHRASE }}
         run: |
+          # Start ssh-agent again for this step
           eval $(ssh-agent -s)
 
-          expect << 'EOF'
+          # Add key using expect
+          expect << 'EOD'
             spawn ssh-add ~/.ssh/github_deploy
             expect "Enter passphrase"
-            send "$env(SSH_PASSPHRASE)\n"
+            send "${SSH_PASSPHRASE}\r"
             expect eof
-          EOF
+          EOD
 
           echo "$ENV_VARS" > .env.tmp
 
