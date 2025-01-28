@@ -21,7 +21,7 @@ jobs:
         run: |
           echo "$ENV_VARS" > .env.tmp
 
-          ssh -i ~/.ssh/github_deploy root@194.164.149.231 'cd /root/cladbe_server && \
+          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'cd /root/cladbe_server && \
           git pull origin main && \
           npm install && \
           pm2 stop ecosystem.config.js || true && \
