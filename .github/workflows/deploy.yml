@@ -16,7 +16,10 @@ jobs:
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
+
+
           # Debug information
+          ssh-keygen -y -f ~/.ssh/github_deploy
           echo "=== SSH Key Debug Info ==="
           ls -la ~/.ssh/github_deploy
           echo "=== SSH Key Type ==="
