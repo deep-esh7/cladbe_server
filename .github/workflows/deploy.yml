@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
       - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -17,15 +18,24 @@ jobs:
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
-          # Using ssh-agent to handle the passphrase
+          # Start ssh-agent and add key with passphrase
           eval $(ssh-agent -s)
-          echo "$SSH_PASSPHRASE" | ssh-add ~/.ssh/github_deploy
+          echo "$SSH_PASSPHRASE" | SSH_ASKPASS_REQUIRE=never ssh-add ~/.ssh/github_deploy
+
+          # Test the connection
+          ssh -o StrictHostKeyChecking=no root@80.65.208.176 'echo "SSH connection successful"'
 
       - name: Deploy
+        env:
+          ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
+          # Restart ssh-agent and add key again for this step
+          eval $(ssh-agent -s)
+          echo "$SSH_PASSPHRASE" | SSH_ASKPASS_REQUIRE=never ssh-add ~/.ssh/github_deploy
+
           echo "$ENV_VARS" > .env.tmp
 
-          ssh root@80.65.208.176 'cd /root/cladbe_server && \
+          ssh -o StrictHostKeyChecking=no root@80.65.208.176 'cd /root/cladbe_server && \
           git pull origin main && \
           npm install && \
           pm2 stop ecosystem.config.js || true && \
