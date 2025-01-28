@@ -540,6 +540,8 @@ async function startServer() {
       throw new Error("Failed to initialize database");
     }
 
+    //emopty
+
     // Start server with increased timeouts for long-running operations
     const server = app.listen(PORT, "0.0.0.0", () => {
       console.log("=".repeat(50));
