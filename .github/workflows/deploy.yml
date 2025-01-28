@@ -10,32 +10,22 @@ jobs:
       - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PASSPHRASE: ${{ secrets.SSH_PASSPHRASE }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/github_deploy
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
-
-
-          # Debug information
-          ssh-keygen -y -f ~/.ssh/github_deploy
-          echo "=== SSH Key Debug Info ==="
-          ls -la ~/.ssh/github_deploy
-          echo "=== SSH Key Type ==="
-          ssh-keygen -l -f ~/.ssh/github_deploy || echo "Invalid key format"
-          echo "=== Known Hosts Content ==="
-          cat ~/.ssh/known_hosts
-          echo "=== Testing SSH Connection ==="
-          ssh -v -i ~/.ssh/github_deploy root@80.65.208.176 exit
+          # Using ssh-agent to handle the passphrase
+          eval $(ssh-agent -s)
+          echo "$SSH_PASSPHRASE" | ssh-add ~/.ssh/github_deploy
 
       - name: Deploy
-        env:
-          ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           echo "$ENV_VARS" > .env.tmp
 
-          ssh -v -i ~/.ssh/github_deploy root@80.65.208.176 'cd /root/cladbe_server && \
+          ssh root@80.65.208.176 'cd /root/cladbe_server && \
           git pull origin main && \
           npm install && \
           pm2 stop ecosystem.config.js || true && \
