@@ -58,8 +58,8 @@ jobs:
               ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
               echo "Currently $ONLINE_COUNT instances online..."
               
-              if [ "$ONLINE_COUNT" -eq 12 ]; then
-                echo "All 12 instances are running successfully"
+              if [ "$ONLINE_COUNT" -eq 13 ]; then
+                echo "All instances are running successfully"
                 pm2 save
                 exit 0
               fi
