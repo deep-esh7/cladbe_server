@@ -38,6 +38,7 @@ if (cluster.isMaster) {
       }
     });
   }
+  //empty
 
   // Handle worker events
   cluster.on("exit", (worker, code, signal) => {
