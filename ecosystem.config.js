@@ -7,16 +7,14 @@ module.exports = {
       ignore_watch: ["*"],
 
       // Process Management
-      exec_mode: "cluster",
-      instances: "max",
+      exec_mode: "fork", // Start with fork mode first
+      instances: 1, // Start with single instance
       kill_timeout: 6000,
-      wait_ready: true,
-      listen_timeout: 15000,
+      wait_ready: false, // Disable wait_ready initially
 
       // Resource Management
       max_memory_restart: "2G",
       node_args: "--max-old-space-size=4096",
-      max_open_files: 65535,
 
       // Performance
       max_restarts: 5,
@@ -29,7 +27,6 @@ module.exports = {
       log_type: "json",
       merge_logs: true,
 
-      // Environment Variables
       env: {
         NODE_ENV: "production",
         PORT: 3000,
@@ -46,7 +43,6 @@ module.exports = {
 
       env_production: {
         NODE_ENV: "production",
-        UV_THREADPOOL_SIZE: 4,
       },
     },
   ],

@@ -74,22 +74,26 @@ jobs:
             # Remove backup if install successful
             rm -rf node_modules_backup
 
-            # Stop and clean existing PM2 processes
-            echo "Managing PM2 processes..."
-            pm2 stop cladbe_server || true
-            pm2 delete cladbe_server || true
-            pm2 flush
-
+            # Complete PM2 cleanup
+            echo "Performing complete PM2 cleanup..."
+            pm2 kill || true
+            pm2 flush || true
+            
+            # Clear PM2 saved state
+            echo "Clearing PM2 saved state..."
+            rm -rf ~/.pm2
+            
+            # Reinitialize PM2
+            echo "Reinitializing PM2..."
+            pm2 update
+            
             # Clear NPM cache
             npm cache clean --force
 
-            # Start application with initial instance
+            # Start application with basic config
             echo "Starting application..."
-            pm2 start ecosystem.config.js \
-              --name cladbe_server \
-              --env production \
-              --update-env
-
+            pm2 start ecosystem.config.js --env production
+            
             # Wait for initial startup
             sleep 10
 
@@ -99,16 +103,14 @@ jobs:
               
               # Scale up instances gradually
               echo "Scaling up instances..."
-              for i in {2..4}; do
-                pm2 scale cladbe_server +1
-                sleep 5
-                
-                if ! pm2 list | grep -q "online"; then
-                  echo "Failed to scale to $i instances"
-                  pm2 logs cladbe_server --lines 50
-                  exit 1
-                fi
-              done
+              pm2 scale cladbe_server 2
+              sleep 5
+              
+              if ! pm2 list | grep -q "online"; then
+                echo "Failed to scale instances"
+                pm2 logs cladbe_server --lines 50
+                exit 1
+              fi
               
               echo "=== Final PM2 Status ==="
               pm2 list
@@ -122,7 +124,7 @@ jobs:
               
               # Monitor logs for any immediate errors
               sleep 5
-              if grep -i "error" logs/pm2.error.log; then
+              if grep -i "error" logs/pm2.error.log 2>/dev/null; then
                 echo "Found errors in log file"
                 exit 1
               fi
