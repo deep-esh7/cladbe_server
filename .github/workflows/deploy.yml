@@ -23,26 +23,30 @@ jobs:
         run: |
           ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
             cd /root/cladbe_server
-            
+
+            echo "Stashing local changes..."
+            git stash
+
             echo "Pulling latest changes..."
             git pull origin main
-            
+
             echo "Installing dependencies..."
             npm install --production
-            
+
             echo "Stopping PM2..."
             pm2 kill || true
             rm -rf ~/.pm2
-            
+            pm2 update
+
             echo "Starting PM2 with all instances..."
             pm2 start ecosystem.config.js --env production
-            
+
             echo "Waiting for instances to start..."
-            sleep 15  # Increased wait time for more instances
-            
+            sleep 20  # Extended wait time for 12 instances
+
             echo "Final process status:"
             pm2 list
-            
+
             # Check if all 12 instances are online
             ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
             if [ "$ONLINE_COUNT" -eq 12 ]; then
@@ -51,6 +55,7 @@ jobs:
               exit 0
             else
               echo "Not all instances are online (running: $ONLINE_COUNT)"
+              echo "Checking PM2 logs..."
               pm2 logs --lines 20
               exit 1
             fi
