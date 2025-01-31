@@ -160,6 +160,16 @@ if (cluster.isMaster) {
       next();
     });
 
+    // Add this near your other routes
+    app.get("/test-websocket", (req, res) => {
+      res.json({
+        status: "ok",
+        websocketPath: "/ws",
+        workers: numCPUs,
+        wsHandler: !!wsHandler,
+      });
+    });
+
     // Routes
     app.get("/health", (req, res) => {
       res.status(200).json("Health check OK");
