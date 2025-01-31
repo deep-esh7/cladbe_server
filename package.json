@@ -27,6 +27,7 @@
     "express-validator": "^7.2.1",
     "firebase-admin": "^13.0.2",
     "helmet": "^8.0.0",
+    "http": "^0.0.1-security",
     "moment-timezone": "^0.5.46",
     "morgan": "^1.10.0",
     "os": "^0.1.2",

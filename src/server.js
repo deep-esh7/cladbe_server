@@ -1,6 +1,7 @@
 const cluster = require("cluster");
 const numCPUs = require("os").cpus().length;
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const morgan = require("morgan");
 const path = require("path");
@@ -41,6 +42,8 @@ async function initializeSqlComponents() {
     createTable: async () => true,
     dropTable: async () => true,
     executeTransaction: async () => [],
+    _buildQueryWithModifiers: () => "",
+    extractParameters: () => [],
   };
 
   return true;
@@ -92,23 +95,13 @@ if (cluster.isMaster) {
 } else {
   // Worker process
   async function setupWorker() {
-    // Setup notification listener - Modified to skip actual setup
-    async function setupNotificationListener(pool) {
-      console.log("Skipping notification listener setup...");
-      return {
-        on: () => {},
-        query: async () => {},
-        end: async () => {},
-      };
-    }
-
-    // Basic server setup with optimizations
+    // Basic server setup
     app.set("trust proxy", true);
     app.disable("x-powered-by");
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 1000, // Increased for better concurrency
+      max: 1000,
       standardHeaders: true,
       legacyHeaders: false,
       trustProxy: true,
@@ -240,28 +233,13 @@ if (cluster.isMaster) {
       res.status(err.status || 500).json(response);
     });
 
-    // Initialize WebSocket with optimizations
+    // Initialize WebSocket with sticky sessions
     async function initializeWebSocket(server) {
       try {
         console.log(`Worker ${process.pid} initializing WebSocket...`);
+
+        // Initialize WebSocket handler first
         wsHandler = new WebSocketHandler(server, clientSqlHelper, null);
-
-        // Add optimized WebSocket configurations
-        wsHandler.setOptions({
-          maxPayload: 50 * 1024 * 1024,
-          perMessageDeflate: false,
-          backlog: 1024,
-          clientTracking: true,
-          keepalive: true,
-          keepaliveInterval: 30000,
-        });
-
-        // Setup sticky sessions for WebSocket
-        sticky.listen(server, process.env.PORT || 3000);
-
-        wsHandler.wss.on("error", (error) => {
-          console.error("WebSocket server error:", error);
-        });
 
         return true;
       } catch (error) {
@@ -345,14 +323,7 @@ if (cluster.isMaster) {
     try {
       console.log(`Worker ${process.pid} starting...`);
 
-      const server = app.listen(PORT, "0.0.0.0", () => {
-        console.log("=".repeat(50));
-        console.log(`Worker ${process.pid} listening on port ${PORT}`);
-        console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-        console.log(`Process ID: ${process.pid}`);
-        console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
-        console.log("=".repeat(50));
-      });
+      const server = http.createServer(app);
 
       // Optimize server settings
       server.keepAliveTimeout = 65000;
@@ -360,8 +331,27 @@ if (cluster.isMaster) {
       server.timeout = 120000;
       server.maxConnections = 10000;
 
+      // Initialize WebSocket before sticky sessions
       const wsInitialized = await initializeWebSocket(server);
       if (!wsInitialized) throw new Error("Failed to initialize WebSocket");
+
+      // Setup sticky sessions
+      if (!sticky.listen(server, PORT)) {
+        // Master process
+        server.once("listening", () => {
+          console.log("Master server is listening on port", PORT);
+        });
+      } else {
+        // Worker process
+        server.once("listening", () => {
+          console.log("=".repeat(50));
+          console.log(`Worker ${process.pid} listening on port ${PORT}`);
+          console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+          console.log(`Process ID: ${process.pid}`);
+          console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
+          console.log("=".repeat(50));
+        });
+      }
 
       return server;
     } catch (error) {
