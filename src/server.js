@@ -289,7 +289,7 @@ if (cluster.isMaster) {
         process.exit(1);
       }
     }
-    //pushing
+
     // Handle worker messages from master
     process.on("message", async (message) => {
       if (message.type === "shutdown") {
