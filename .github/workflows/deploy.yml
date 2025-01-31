@@ -26,11 +26,30 @@ jobs:
           echo "$ENV_VARS" > .env.tmp
 
           ssh -i ~/.ssh/github_deploy -o StrictHostKeyChecking=no root@80.65.208.176 'bash -s' << 'ENDSSH'
-            cd /root/cladbe_server && \
-            git pull origin main && \
-            npm install && \
-            pm2 kill && \
-            rm -rf ~/.pm2 && \
-            pm2 update && \
+            set -e
+            cd /root/cladbe_server
+            
+            # Pull latest changes
+            git pull origin main
+            
+            # Install dependencies
+            npm install --production
+            
+            # Complete PM2 cleanup
+            pm2 kill || true
+            rm -rf ~/.pm2
+            
+            # Start fresh PM2
+            pm2 update
+            
+            # Start with 4 instances
             pm2 start ecosystem.config.js --env production
+            
+            # Save PM2 state
+            pm2 save
+            
+            # Verify instances
+            echo "Verifying deployment..."
+            sleep 5
+            pm2 list
           ENDSSH
