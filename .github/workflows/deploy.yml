@@ -1,7 +1,9 @@
 name: Deploy to Server
+
 on:
   push:
     branches: [main]
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -17,21 +19,50 @@ jobs:
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
-          # Debug: Print key info
-          echo "=== Key Info ==="
-          ls -la ~/.ssh/github_deploy
-          ssh-keygen -l -f ~/.ssh/github_deploy
-
       - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           echo "$ENV_VARS" > .env.tmp
 
-          ssh -i ~/.ssh/github_deploy -o StrictHostKeyChecking=no root@80.65.208.176 'cd /root/cladbe_server && \
-          git pull origin main && \
-          npm install && \
-          pm2 stop ecosystem.config.js || true && \
-          pm2 delete ecosystem.config.js || true && \
-          pm2 flush && \
-          pm2 start ecosystem.config.js --env production --no-autorestart'
+          # Deploy script with system optimizations
+          ssh -i ~/.ssh/github_deploy -o StrictHostKeyChecking=no root@80.65.208.176 '
+            # Update system limits
+            ulimit -n 65535
+            
+            # Create logs directory if it doesn't exist
+            mkdir -p /root/cladbe_server/logs
+
+            # Deploy application
+            cd /root/cladbe_server && \
+            git pull origin main && \
+            npm install && \
+            
+            # Stop and cleanup PM2
+            pm2 stop ecosystem.config.js || true && \
+            pm2 delete ecosystem.config.js || true && \
+            pm2 flush && \
+            
+            # Set system limits for PM2
+            echo "fs.file-max = 500000" >> /etc/sysctl.conf && \
+            echo "fs.nr_open = 500000" >> /etc/sysctl.conf && \
+            sysctl -p && \
+            
+            # Update PM2 startup script
+            pm2 startup && \
+            
+            # Start application with PM2
+            NODE_ENV=production pm2 start ecosystem.config.js \
+              --env production \
+              --max-memory-restart 2G \
+              --node-args="--max-old-space-size=4096 --expose-gc" \
+              --wait-ready \
+              --listen-timeout 10000 \
+              --kill-timeout 3000 \
+              --max-restarts 10 \
+              --min-uptime 5000 \
+              --merge-logs \
+              --time && \
+              
+            # Save PM2 config
+            pm2 save'

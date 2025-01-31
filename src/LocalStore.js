@@ -9,6 +9,7 @@ class LocalStore extends EventEmitter {
     this._ttlStore = new Map();
     this._workerId = process.pid;
     this._setupIPC();
+    this._setupPeriodicCleanup();
   }
 
   _setupIPC() {
@@ -28,16 +29,29 @@ class LocalStore extends EventEmitter {
     }
   }
 
+  _setupPeriodicCleanup() {
+    // Cleanup expired entries every minute
+    setInterval(() => {
+      this.cleanup();
+    }, 60000);
+  }
+
   _handleSet(key, value, ttl) {
     this._store.set(key, value);
+
     if (ttl) {
       const existingTimeout = this._ttlStore.get(key);
       if (existingTimeout) {
         clearTimeout(existingTimeout);
       }
-      const timeout = setTimeout(() => this.del(key), ttl * 1000);
+
+      const timeout = setTimeout(() => {
+        this.del(key);
+      }, ttl * 1000);
+
       this._ttlStore.set(key, timeout);
     }
+
     this.emit("update", { key, value, source: "ipc" });
   }
 
@@ -47,6 +61,7 @@ class LocalStore extends EventEmitter {
       clearTimeout(timeout);
       this._ttlStore.delete(key);
     }
+
     this._store.delete(key);
     this.emit("delete", { key, source: "ipc" });
   }
@@ -83,6 +98,10 @@ class LocalStore extends EventEmitter {
     return this._store.get(key) || null;
   }
 
+  mget(keys) {
+    return keys.map((key) => this.get(key));
+  }
+
   has(key) {
     return this._store.has(key);
   }
@@ -95,6 +114,18 @@ class LocalStore extends EventEmitter {
       return true;
     } catch (error) {
       console.error("Error deleting value:", error);
+      return false;
+    }
+  }
+
+  async mdel(keys) {
+    try {
+      for (const key of keys) {
+        await this.del(key);
+      }
+      return true;
+    } catch (error) {
+      console.error("Error in bulk delete:", error);
       return false;
     }
   }
@@ -128,14 +159,45 @@ class LocalStore extends EventEmitter {
     return snapshot;
   }
 
+  getTtl(key) {
+    const timeout = this._ttlStore.get(key);
+    if (!timeout) return -1;
+
+    const remaining = timeout._idleTimeout - (Date.now() - timeout._idleStart);
+    return Math.max(0, Math.ceil(remaining / 1000));
+  }
+
   cleanup() {
-    // Clean up any expired TTL entries
     const now = Date.now();
     for (const [key, timeout] of this._ttlStore.entries()) {
       if (timeout._idleStart + timeout._idleTimeout < now) {
         this.del(key);
       }
     }
+  }
+
+  async setIfNotExists(key, value, options = {}) {
+    if (!this.has(key)) {
+      return this.set(key, value, options);
+    }
+    return false;
+  }
+
+  async increment(key, amount = 1) {
+    const currentValue = this.get(key);
+    if (currentValue === null) {
+      return this.set(key, amount);
+    }
+
+    if (typeof currentValue !== "number") {
+      throw new Error("Value is not a number");
+    }
+
+    return this.set(key, currentValue + amount);
+  }
+
+  async decrement(key, amount = 1) {
+    return this.increment(key, -amount);
   }
 }
 

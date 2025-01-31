@@ -4,30 +4,43 @@ const { v4: uuidv4 } = require("uuid");
 
 class WebSocketHandler {
   constructor(server, store) {
+    // Configure WebSocket server with optimized settings
     this.wss = new WebSocket.Server({
       server,
       path: "/ws",
-      // Performance optimizations
       perMessageDeflate: {
         zlibDeflateOptions: {
-          chunkSize: 1024,
+          level: 1, // Fastest compression
           memLevel: 7,
-          level: 3,
+          chunkSize: 10 * 1024,
         },
         zlibInflateOptions: {
           chunkSize: 10 * 1024,
         },
         clientNoContextTakeover: true,
         serverNoContextTakeover: true,
-        threshold: 1024,
+        serverMaxWindowBits: 10,
+        concurrencyLimit: 10,
+        threshold: 1024, // Only compress messages > 1KB
       },
+      maxPayload: 50 * 1024, // 50KB max message size
+      backlog: 10000,
+      maxConnections: 10000,
     });
 
     this.store = store;
     this.subscriptions = new Map();
     this.clientSubscriptions = new Map();
     this.messageQueue = new Map();
+    this.clientStats = new Map();
     this.setupWebSocket();
+
+    // Message batching
+    this.batchSize = 100;
+    this.batchInterval = 50; // ms
+    this.batchedMessages = new Map();
+
+    setInterval(() => this.processBatchedMessages(), this.batchInterval);
 
     // Listen for store updates
     this.store.on("update", async ({ key, value, source }) => {
@@ -37,61 +50,87 @@ class WebSocketHandler {
     });
   }
 
+  processBatchedMessages() {
+    for (const [clientId, messages] of this.batchedMessages.entries()) {
+      if (messages.length > 0) {
+        const client = this.subscriptions.get(clientId)?.ws;
+        if (client && client.readyState === WebSocket.OPEN) {
+          const batch = messages.splice(0, this.batchSize);
+          this.sendMessage(client, {
+            type: "batch",
+            messages: batch,
+          });
+        }
+      }
+    }
+  }
+
   setupWebSocket() {
     this.wss.on("connection", (ws, req) => {
       const clientId = uuidv4();
       const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
-      // Rate limiting setup
-      this.messageQueue.set(clientId, {
-        messages: 0,
-        lastReset: Date.now(),
-        timer: setInterval(() => {
-          const client = this.messageQueue.get(clientId);
-          if (client) {
-            client.messages = 0;
-            client.lastReset = Date.now();
-          }
-        }, 1000),
+      // Initialize client tracking
+      this.clientSubscriptions.set(ws, new Set());
+      this.batchedMessages.set(clientId, []);
+      this.clientStats.set(clientId, {
+        connectTime: Date.now(),
+        messageCount: 0,
+        lastActivity: Date.now(),
+        ip: ip,
       });
 
-      this.clientSubscriptions.set(ws, new Set());
-      ws.binaryType = "arraybuffer"; // More efficient binary handling
+      // Set binary type for better performance
+      ws.binaryType = "arraybuffer";
 
       console.log(`New client connected: ${clientId} from ${ip}`);
 
+      // Setup rate limiting
+      const rateLimitState = {
+        messages: 0,
+        lastReset: Date.now(),
+        timer: setInterval(() => {
+          rateLimitState.messages = 0;
+          rateLimitState.lastReset = Date.now();
+        }, 1000),
+      };
+
       ws.isAlive = true;
+
       ws.on("pong", () => {
         ws.isAlive = true;
+        this.updateClientStats(clientId, "pong");
       });
 
       ws.on("message", async (message) => {
         try {
-          // Rate limiting check
-          const client = this.messageQueue.get(clientId);
-          if (client.messages >= 100) {
+          // Rate limiting
+          rateLimitState.messages++;
+          if (rateLimitState.messages > 100) {
             // 100 messages per second limit
             this.sendError(ws, "Rate limit exceeded");
             return;
           }
-          client.messages++;
 
           const data = JSON.parse(message);
           await this.handleMessage(ws, clientId, data);
+          this.updateClientStats(clientId, "message");
         } catch (error) {
-          console.error("Message handling error:", error);
+          console.error(
+            `Message handling error for client ${clientId}:`,
+            error
+          );
           this.sendError(ws, `Message handling error: ${error.message}`);
         }
       });
 
-      ws.on("close", () => {
-        clearInterval(this.messageQueue.get(clientId)?.timer);
-        this.messageQueue.delete(clientId);
+      ws.on("error", (error) => {
+        console.error(`WebSocket error for client ${clientId}:`, error);
         this.handleClientDisconnect(ws, clientId);
       });
 
-      ws.on("error", (error) => {
-        console.error(`WebSocket error for client ${clientId}:`, error);
+      ws.on("close", () => {
+        clearInterval(rateLimitState.timer);
         this.handleClientDisconnect(ws, clientId);
       });
 
@@ -102,6 +141,16 @@ class WebSocketHandler {
     });
 
     this.setupHeartbeat();
+  }
+
+  updateClientStats(clientId, activity) {
+    const stats = this.clientStats.get(clientId);
+    if (stats) {
+      stats.lastActivity = Date.now();
+      if (activity === "message") {
+        stats.messageCount++;
+      }
+    }
   }
 
   setupHeartbeat() {
@@ -138,17 +187,16 @@ class WebSocketHandler {
           this.sendError(ws, "Unknown message type");
       }
 
-      // Performance monitoring
+      // Log slow operations
       const [seconds, nanoseconds] = process.hrtime(startTime);
       const duration = seconds * 1000 + nanoseconds / 1000000;
       if (duration > 100) {
-        // Log slow operations
         console.warn(
           `Slow message handling (${duration.toFixed(2)}ms): ${message.type}`
         );
       }
     } catch (error) {
-      console.error("Message handling error:", error);
+      console.error(`Message handling error:`, error);
       this.sendError(ws, error.message);
     }
   }
@@ -200,11 +248,13 @@ class WebSocketHandler {
     const subscription = this.subscriptions.get(subscriptionId);
 
     if (subscription && subscription.ws.readyState === WebSocket.OPEN) {
-      this.sendMessage(subscription.ws, {
+      const messages = this.batchedMessages.get(subscription.clientId) || [];
+      messages.push({
         type: "data",
         subscriptionId,
         data: value,
       });
+      this.batchedMessages.set(subscription.clientId, messages);
     }
   }
 
@@ -226,6 +276,8 @@ class WebSocketHandler {
     });
 
     this.clientSubscriptions.delete(ws);
+    this.batchedMessages.delete(clientId);
+    this.clientStats.delete(clientId);
   }
 
   sendMessage(ws, message) {
@@ -236,8 +288,8 @@ class WebSocketHandler {
           timestamp: Date.now(),
         });
 
-        if (data.length > 1024 * 50) {
-          // 50KB threshold
+        if (data.length > 50 * 1024) {
+          // 50KB warning threshold
           console.warn(`Large message being sent: ${data.length} bytes`);
         }
 
@@ -258,21 +310,41 @@ class WebSocketHandler {
   }
 
   broadcast(message) {
+    const batchedBroadcast = JSON.stringify({
+      ...message,
+      timestamp: Date.now(),
+    });
+
     this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        this.sendMessage(client, message);
+        client.send(batchedBroadcast);
       }
     });
+  }
+
+  getStats() {
+    return {
+      totalConnections: this.wss.clients.size,
+      subscriptions: this.subscriptions.size,
+      clientStats: Array.from(this.clientStats.entries()).map(
+        ([clientId, stats]) => ({
+          clientId,
+          ...stats,
+          uptime: Date.now() - stats.connectTime,
+        })
+      ),
+    };
   }
 
   async gracefulShutdown() {
     console.log("Starting WebSocket graceful shutdown");
 
     // Clear all intervals
-    this.messageQueue.forEach((client) => {
-      clearInterval(client.timer);
+    this.clientStats.forEach((stats, clientId) => {
+      if (stats.timer) clearInterval(stats.timer);
     });
 
+    // Close all client connections with status code
     this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         client.close(1000, "Server shutting down");

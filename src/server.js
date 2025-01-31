@@ -1,6 +1,7 @@
 // server.js
 const cluster = require("cluster");
-const numCPUs = require("os").cpus().length;
+const os = require("os");
+const v8 = require("v8");
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -14,12 +15,24 @@ const leadsRoutes = require("./routes/leadsSearch.routes");
 const LocalStore = require("./LocalStore");
 const WebSocketHandler = require("./websocket/webSocketHandler.js");
 
-// Initialize environment - do this only once
+// V8 optimizations
+v8.setFlagsFromString("--max-old-space-size=4096");
+v8.setFlagsFromString("--optimize-for-size");
+v8.setFlagsFromString("--max-semi-space-size=128");
+
+// Load environment variables once
 require("dotenv").config({
   path: path.resolve(__dirname, ".env"),
   debug: false,
   override: false,
 });
+
+// Increase the maximum number of event listeners
+require("events").EventEmitter.defaultMaxListeners = 0;
+process.setMaxListeners(0);
+
+// Calculate optimal worker count - use 75% of available CPUs
+const WORKERS_COUNT = Math.max(Math.floor(os.cpus().length * 0.75), 1);
 
 // Create express app instance
 const app = express();
@@ -27,49 +40,34 @@ let wsHandler = null;
 
 if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
-
-  // Master process optimizations
   process.title = "node-master";
-  process.setMaxListeners(0);
 
   // Calculate memory allocation
-  const os = require("os");
   const totalMem = os.totalmem();
   const masterMemory = Math.floor(totalMem * 0.1); // 10% for master
-  const workerMemory = Math.floor((totalMem * 0.9) / numCPUs); // Rest divided among workers
+  const workerMemory = Math.floor((totalMem * 0.9) / WORKERS_COUNT);
 
+  // Worker management
   const workers = new Map();
+  const workerLoad = new Map();
   let restartingWorker = false;
 
-  // Enhanced worker restart function
-  async function reloadWorkers() {
-    if (restartingWorker) return;
-    restartingWorker = true;
+  // Monitor system resources
+  function monitorResources() {
+    const loadAvg = os.loadavg();
+    const freeMem = os.freemem();
+    const memUsage = ((totalMem - freeMem) / totalMem) * 100;
 
-    for (const [id, worker] of workers) {
-      // Fork new worker
-      const newWorker = cluster.fork({
-        NODE_OPTIONS: `--max-old-space-size=${workerMemory}`,
-      });
-      workers.set(newWorker.id, newWorker);
+    console.log(`System Load (1m, 5m, 15m): ${loadAvg.join(", ")}`);
+    console.log(`Memory Usage: ${memUsage.toFixed(2)}%`);
 
-      // Wait for new worker to be ready
-      await new Promise((resolve) => {
-        newWorker.once("listening", resolve);
-      });
-
-      // Gracefully shutdown old worker
-      worker.disconnect();
-      await new Promise((resolve) => {
-        worker.on("exit", () => {
-          workers.delete(id);
-          resolve();
-        });
-      });
+    // Auto-scaling logic
+    if (loadAvg[0] > WORKERS_COUNT * 0.8) {
+      console.log("High load detected");
     }
-
-    restartingWorker = false;
   }
+
+  setInterval(monitorResources, 30000);
 
   // Handle messages from workers
   cluster.on("message", (worker, message) => {
@@ -90,17 +88,22 @@ if (cluster.isMaster) {
         }
         break;
       case "health_check":
+        workerLoad.set(worker.id, message.load);
         worker.lastHeartbeat = Date.now();
         break;
     }
   });
 
-  // Fork workers
-  for (let i = 0; i < numCPUs; i++) {
+  // Spawn workers
+  for (let i = 0; i < WORKERS_COUNT; i++) {
     const worker = cluster.fork({
-      NODE_OPTIONS: `--max-old-space-size=${workerMemory}`,
+      NODE_OPTIONS: `--max-old-space-size=${Math.floor(
+        workerMemory / (1024 * 1024)
+      )}`,
+      UV_THREADPOOL_SIZE: 8,
     });
     workers.set(worker.id, worker);
+    workerLoad.set(worker.id, 0);
 
     worker.on("error", (error) => {
       console.error(`Worker ${worker.id} error:`, error);
@@ -112,7 +115,6 @@ if (cluster.isMaster) {
     const now = Date.now();
     workers.forEach((worker, id) => {
       if (now - worker.lastHeartbeat > 30000) {
-        // 30 seconds timeout
         console.error(`Worker ${id} is unresponsive, restarting...`);
         worker.kill("SIGTERM");
       }
@@ -123,16 +125,20 @@ if (cluster.isMaster) {
   cluster.on("exit", (worker, code, signal) => {
     console.log(`Worker ${worker.id} died (${signal || code}). Restarting...`);
     workers.delete(worker.id);
+    workerLoad.delete(worker.id);
 
     if (!worker.exitedAfterDisconnect) {
       const newWorker = cluster.fork({
-        NODE_OPTIONS: `--max-old-space-size=${workerMemory}`,
+        NODE_OPTIONS: `--max-old-space-size=${Math.floor(
+          workerMemory / (1024 * 1024)
+        )}`,
+        UV_THREADPOOL_SIZE: 8,
       });
       workers.set(newWorker.id, newWorker);
+      workerLoad.set(newWorker.id, 0);
     }
   });
 
-  // Handle master process signals
   process.on("SIGTERM", async () => {
     console.log("Master received SIGTERM. Shutting down workers...");
     for (const worker of workers.values()) {
@@ -152,9 +158,13 @@ if (cluster.isMaster) {
       // Initialize local store
       const store = new LocalStore();
 
-      // Send regular heartbeats
+      // Send regular heartbeats and load info
       setInterval(() => {
-        process.send({ type: "health_check" });
+        const load = process.cpuUsage();
+        process.send({
+          type: "health_check",
+          load: (load.user + load.system) / 1000000,
+        });
       }, 5000);
 
       // Optimize garbage collection
@@ -228,6 +238,7 @@ if (cluster.isMaster) {
           workerId: process.pid,
           timestamp: Date.now(),
           memoryUsage: process.memoryUsage(),
+          uptime: process.uptime(),
         });
       });
 
@@ -250,8 +261,10 @@ if (cluster.isMaster) {
             });
           }
 
-          // If not in cache, get from database
-          const queryResult = await db.query(req.body.query, req.body.params);
+          // Handle the query (implement your query logic here)
+          // const queryResult = await yourQueryFunction(req.body.query, req.body.params);
+          const queryResult = { rows: [] }; // Replace with actual query
+
           store.set(cacheKey, queryResult.rows, { ttl: 300 });
           res.json({ success: true, data: queryResult.rows });
         } catch (error) {
@@ -280,19 +293,15 @@ if (cluster.isMaster) {
 
       // Start server
       const PORT = process.env.PORT || 3000;
-      const server = app.listen(PORT, "0.0.0.0", () => {
-        console.log("=".repeat(50));
-        console.log(`Worker ${process.pid} listening on port ${PORT}`);
-        console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-        console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
-        console.log("=".repeat(50));
+      const server = app.listen(PORT, "0.0.0.0", {
+        backlog: 10000, // Increase connection queue
       });
 
       // Optimize server settings
-      server.keepAliveTimeout = 65000;
-      server.headersTimeout = 66000;
+      server.keepAliveTimeout = 30000;
+      server.headersTimeout = 31000;
       server.maxHeadersCount = 100;
-      server.timeout = 30000;
+      server.setTimeout(30000);
 
       // Enable TCP Keep-Alive
       server.on("connection", (socket) => {
@@ -300,12 +309,26 @@ if (cluster.isMaster) {
       });
 
       // Initialize WebSocket handler
-      wsHandler = new WebSocketHandler(server, store);
+      const wsOptions = {
+        maxPayload: 100 * 1024,
+        backlog: 10000,
+        clientTracking: true,
+        maxConnections: 10000,
+      };
+
+      wsHandler = new WebSocketHandler(server, store, wsOptions);
 
       // Set up periodic cleanups
       setInterval(() => {
         store.cleanup();
       }, 1800000); // Every 30 minutes
+
+      // Log startup success
+      console.log("=".repeat(50));
+      console.log(`Worker ${process.pid} listening on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+      console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
+      console.log("=".repeat(50));
 
       return server;
     } catch (error) {
@@ -371,4 +394,5 @@ if (cluster.isMaster) {
   });
 }
 
+// Export app for testing
 module.exports = { app };
