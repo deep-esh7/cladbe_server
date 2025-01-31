@@ -310,26 +310,23 @@ if (cluster.isMaster) {
 
       // Initialize WebSocket handler
       // Update WebSocket server settings
+      // In WebSocketHandler.js
       const wsOptions = {
-        maxPayload: 100 * 1024,
-        backlog: 20000, // Increased from 10000
-        clientTracking: true,
-        maxConnections: 20000, // Increased from 10000
+        maxPayload: 1024 * 1024, // Increase to 1MB
         perMessageDeflate: {
           zlibDeflateOptions: {
             level: 1,
-            memLevel: 8, // Increased from 7
-            chunkSize: 16 * 1024,
+            memLevel: 8,
+            chunkSize: 32 * 1024, // Increase chunk size
           },
           zlibInflateOptions: {
-            chunkSize: 16 * 1024,
+            chunkSize: 32 * 1024,
           },
-          serverMaxWindowBits: 15, // Increased from 10
-          concurrencyLimit: 20, // Increased from 10
-          threshold: 1024,
+          threshold: 1024 * 8, // Compress messages > 8KB
         },
+        clientTracking: true,
+        noServer: true, // Important for cluster
       };
-
       wsHandler = new WebSocketHandler(server, store, wsOptions);
 
       // Set up periodic cleanups

@@ -5,27 +5,44 @@ const { v4: uuidv4 } = require("uuid");
 class WebSocketHandler {
   constructor(server, store) {
     // Configure WebSocket server with optimized settings
+
+    this.wsPool = new Map();
+    this.maxConnectionsPerWorker = Math.floor(
+      10000 / process.env.WORKERS_COUNT || 4
+    );
+
+    // Enhanced message queue
+    this.messageQueue = new Array(1000);
+    this.queueIndex = 0;
+
+    // Increase batch settings
+    this.batchSize = 1000;
+    this.batchInterval = 100;
+    this.pendingMessages = new Map();
+
     this.wss = new WebSocket.Server({
       server,
       path: "/ws",
       perMessageDeflate: {
         zlibDeflateOptions: {
-          level: 1, // Fastest compression
-          memLevel: 7,
-          chunkSize: 10 * 1024,
+          level: 1,
+          memLevel: 8,
+          chunkSize: 32 * 1024,
         },
         zlibInflateOptions: {
-          chunkSize: 10 * 1024,
+          chunkSize: 32 * 1024,
         },
         clientNoContextTakeover: true,
         serverNoContextTakeover: true,
-        serverMaxWindowBits: 10,
-        concurrencyLimit: 10,
-        threshold: 1024, // Only compress messages > 1KB
+        serverMaxWindowBits: 15,
+        concurrencyLimit: 20,
+        threshold: 8 * 1024,
       },
-      maxPayload: 50 * 1024, // 50KB max message size
-      backlog: 10000,
-      maxConnections: 10000,
+      maxPayload: 1024 * 1024,
+      backlog: 20000,
+      maxConnections: 20000,
+      clientTracking: true,
+      noServer: true,
     });
 
     this.store = store;
@@ -67,7 +84,14 @@ class WebSocketHandler {
 
   setupWebSocket() {
     this.wss.on("connection", (ws, req) => {
+      if (this.wsPool.size >= this.maxConnectionsPerWorker) {
+        ws.close(1013, "Worker at capacity");
+        return;
+      }
+
       const clientId = uuidv4();
+      this.wsPool.set(clientId, ws);
+
       const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
       // Initialize client tracking
@@ -171,6 +195,21 @@ class WebSocketHandler {
 
   async handleMessage(ws, clientId, message) {
     const startTime = process.hrtime();
+
+    if (this.queueIndex >= 900) {
+      ws.pause();
+      await new Promise((resolve) => {
+        const checkQueue = () => {
+          if (this.queueIndex < 500) {
+            ws.resume();
+            resolve();
+          } else {
+            setTimeout(checkQueue, 100);
+          }
+        };
+        checkQueue();
+      });
+    }
 
     try {
       switch (message.type) {
