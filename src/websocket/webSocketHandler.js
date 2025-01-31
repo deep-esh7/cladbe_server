@@ -21,7 +21,7 @@ class WebSocketHandler {
     this.pendingMessages = new Map();
 
     this.wss = new WebSocket.Server({
-      server,
+      server, // Keep only this
       path: "/ws",
       perMessageDeflate: {
         zlibDeflateOptions: {
@@ -38,11 +38,6 @@ class WebSocketHandler {
         concurrencyLimit: 20,
         threshold: 8 * 1024,
       },
-      maxPayload: 1024 * 1024,
-      backlog: 20000,
-      maxConnections: 20000,
-      clientTracking: true,
-      noServer: true,
     });
 
     this.store = store;
