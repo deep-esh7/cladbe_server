@@ -19,37 +19,46 @@ jobs:
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
-      - name: Deploy
+      - name: Copy ENV file
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
-          echo "$ENV_VARS" > .env.tmp
+          echo "$ENV_VARS" > .env
+          scp -i ~/.ssh/github_deploy .env root@80.65.208.176:/root/cladbe_server/.env
 
-          ssh -i ~/.ssh/github_deploy -o StrictHostKeyChecking=no root@80.65.208.176 'bash -s' << 'ENDSSH'
-            set -e
+      - name: Stop Existing PM2
+        run: |
+          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'pm2 kill || true && rm -rf ~/.pm2'
+
+      - name: Deploy and Start
+        run: |
+          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
             cd /root/cladbe_server
             
-            # Pull latest changes
+            echo "Pulling latest changes..."
             git pull origin main
             
-            # Install dependencies
+            echo "Installing dependencies..."
             npm install --production
             
-            # Complete PM2 cleanup
-            pm2 kill || true
-            rm -rf ~/.pm2
-            
-            # Start fresh PM2
-            pm2 update
-            
-            # Start with 4 instances
+            echo "Starting PM2..."
             pm2 start ecosystem.config.js --env production
             
-            # Save PM2 state
+            echo "Saving PM2 configuration..."
             pm2 save
             
-            # Verify instances
-            echo "Verifying deployment..."
-            sleep 5
+            echo "Current processes:"
             pm2 list
+          ENDSSH
+
+      - name: Verify Deployment
+        run: |
+          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
+            if pm2 list | grep -q "online"; then
+              echo "Deployment successful"
+              pm2 list
+            else
+              echo "Deployment failed"
+              exit 1
+            fi
           ENDSSH
