@@ -3,256 +3,194 @@ const numCPUs = require("os").cpus().length;
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
-const path = require("path");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const WebSocketHandler = require("./websocket/webSocketHandler.js");
-const { fetchAgentData } = require("./test/testCallFetch");
+const WebSocket = require("ws");
 const sticky = require("sticky-session");
+const { fetchAgentData } = require("./test/testCallFetch");
 
-// Create express app instance at top level
+// Create express app instance
 const app = express();
-let wsHandler;
-
-// Basic server setup with optimized settings
-app.set("trust proxy", true);
-app.set("x-powered-by", false);
-
-// Optimize rate limiter for clustering
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 500, // Increased for higher concurrency
-  standardHeaders: true,
-  legacyHeaders: false,
-  trustProxy: true,
-  message: "Too many requests, please try again later.",
-  keyGenerator: (req) => req.ip,
-  skip: (req) => req.path === "/health", // Skip health checks
-});
-
-const corsOptions = {
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Accept", "Authorization"],
-  credentials: true,
-  maxAge: 86400,
-  websocket: true,
-};
-
-// Optimized middleware setup
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "ws:", "wss:"],
-      },
-    },
-  })
-);
-
-app.use(cors(corsOptions));
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-app.use(
-  morgan("dev", {
-    skip: (req) => req.path === "/health", // Skip logging health checks
-  })
-);
-app.use(limiter);
-
-// Efficient request logging
-app.use((req, res, next) => {
-  if (req.path !== "/health") {
-    // Skip logging health checks
-    const requestId = Math.random().toString(36).substring(7);
-    res.setHeader("X-Request-ID", requestId);
-  }
-  next();
-});
 
 if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
+
+  // Store active workers
   const workers = new Map();
 
-  // Create workers
+  // Create worker processes
   for (let i = 0; i < numCPUs; i++) {
     const worker = cluster.fork();
     workers.set(worker.id, worker);
 
-    // Improved worker message handling
+    // Handle messages from workers
     worker.on("message", (message) => {
       if (message.type === "websocket_broadcast") {
-        // Broadcast to other workers
+        // Broadcast to all other workers
         for (const [id, w] of workers) {
           if (id !== worker.id) {
-            w.send({ type: "websocket_message", data: message.data });
+            w.send({
+              type: "websocket_message",
+              data: message.data,
+            });
           }
         }
       }
     });
   }
 
-  // Efficient worker management
+  // Handle worker exits
   cluster.on("exit", (worker, code, signal) => {
     console.log(`Worker ${worker.id} died. Restarting...`);
     workers.delete(worker.id);
     const newWorker = cluster.fork();
     workers.set(newWorker.id, newWorker);
   });
-
-  // Graceful master shutdown
-  process.on("SIGTERM", async () => {
-    console.log("Master received SIGTERM. Shutting down workers...");
-    for (const worker of workers.values()) {
-      worker.send({ type: "shutdown" });
-    }
-    setTimeout(() => {
-      console.log("Master shutting down");
-      process.exit(0);
-    }, 5000);
-  });
 } else {
   // Worker process
-  async function setupWorker() {
-    // Routes
-    app.get("/health", (req, res) => {
-      res.status(200).json("healthy");
+  let wss;
+
+  // Basic server setup
+  app.set("trust proxy", true);
+  app.disable("x-powered-by");
+
+  // Optimize rate limiter
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000, // Increased limit
+    standardHeaders: true,
+    legacyHeaders: false,
+    trustProxy: true,
+    skip: (req) => req.path === "/health",
+  });
+
+  const corsOptions = {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    maxAge: 86400,
+  };
+
+  // Middleware
+  app.use(helmet());
+  app.use(cors(corsOptions));
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+  app.use(
+    morgan("dev", {
+      skip: (req) => req.path === "/health",
+    })
+  );
+  app.use(limiter);
+
+  // Health check
+  app.get("/health", (_, res) => res.status(200).send("healthy"));
+
+  // Routes
+  app.post("/api/fetchAgentData", fetchAgentData);
+
+  // Initialize WebSocket server
+  function setupWebSocketServer(server) {
+    wss = new WebSocket.Server({
+      server,
+      perMessageDeflate: false, // Disable compression for better performance
+      maxPayload: 50 * 1024 * 1024, // 50MB max message size
+      clientTracking: true,
+      backlog: 1024, // Connection queue size
     });
 
-    app.use("/api/leads", leadsRoutes);
-    app.post("/api/fetchAgentData", fetchAgentData);
-    app.post("/fetchAgentData", fetchAgentData);
-
-    // Mock SQL routes with efficient responses
-    app.post("/api/sql/query", (req, res) => {
-      res.json({ success: true, data: [] });
-    });
-
-    app.post("/api/sql/execute", (req, res) => {
-      res.json({ success: true, data: [] });
-    });
-
-    // Error handling middleware
-    app.use((err, req, res, next) => {
-      const timestamp = new Date().toISOString();
-      const response = {
-        success: false,
-        error: err.message || "Internal Server Error",
-        requestId: req.headers["x-request-id"],
-        timestamp,
-        workerId: process.pid,
-      };
-
-      if (process.env.NODE_ENV === "development") {
-        response.stack = err.stack;
-      }
-
-      res.status(err.status || 500).json(response);
-    });
-
-    // Initialize WebSocket with sticky sessions
-    async function initializeWebSocket(server) {
-      try {
-        console.log(`Worker ${process.pid} initializing WebSocket...`);
-        wsHandler = new WebSocketHandler(server);
-
-        // Setup sticky sessions
-        sticky.listen(server, process.env.PORT || 3000);
-
-        wsHandler.wss.on("error", (error) => {
-          console.error("WebSocket server error:", error);
-        });
-
-        return true;
-      } catch (error) {
-        console.error("Failed to initialize WebSocket:", error);
-        return false;
-      }
+    // Set up heartbeat to detect stale connections
+    function heartbeat() {
+      this.isAlive = true;
     }
 
-    // Efficient graceful shutdown
-    async function gracefulShutdown(signal) {
-      console.log(
-        `Worker ${process.pid} received ${signal}. Starting graceful shutdown...`
-      );
+    wss.on("connection", function (ws) {
+      ws.isAlive = true;
+      ws.on("pong", heartbeat);
 
-      const shutdownTimeout = setTimeout(() => {
-        process.exit(1);
-      }, 30000);
+      // Handle messages
+      ws.on("message", function (data) {
+        try {
+          // Broadcast to other workers
+          process.send({
+            type: "websocket_broadcast",
+            data: data.toString(),
+          });
 
-      try {
-        if (wsHandler) {
-          await wsHandler.gracefulShutdown();
+          // Broadcast to clients in this worker
+          wss.clients.forEach(function (client) {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(data.toString());
+            }
+          });
+        } catch (err) {
+          console.error("Error handling message:", err);
         }
-
-        clearTimeout(shutdownTimeout);
-        process.exit(0);
-      } catch (error) {
-        console.error(`Worker ${process.pid} shutdown error:`, error);
-        process.exit(1);
-      }
-    }
-
-    // Worker message handling
-    process.on("message", async (message) => {
-      if (message.type === "shutdown") {
-        await gracefulShutdown("SIGTERM");
-      } else if (message.type === "websocket_message" && wsHandler) {
-        wsHandler.broadcast(message.data);
-      }
-    });
-
-    // Process event handlers
-    process.on("uncaughtException", (error) => {
-      console.error(`Worker ${process.pid} uncaught exception:`, error);
-      gracefulShutdown("UNCAUGHT_EXCEPTION");
-    });
-
-    process.on("unhandledRejection", (reason) => {
-      console.error(`Worker ${process.pid} unhandled rejection:`, reason);
-      gracefulShutdown("UNHANDLED_REJECTION");
-    });
-
-    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-
-    // Start server
-    const PORT = process.env.PORT || 3000;
-
-    try {
-      console.log(`Worker ${process.pid} starting...`);
-
-      const server = app.listen(PORT, "0.0.0.0", () => {
-        console.log("=".repeat(50));
-        console.log(`Worker ${process.pid} listening on port ${PORT}`);
-        console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-        console.log(`Process ID: ${process.pid}`);
       });
 
-      // Optimized server settings
-      server.keepAliveTimeout = 65000;
-      server.headersTimeout = 66000;
-      server.timeout = 120000;
+      // Send initial connection success message
+      ws.send(JSON.stringify({ type: "connected", workerId: process.pid }));
+    });
 
-      const wsInitialized = await initializeWebSocket(server);
-      if (!wsInitialized) throw new Error("Failed to initialize WebSocket");
+    // Clean up dead connections
+    const interval = setInterval(function ping() {
+      wss.clients.forEach(function (ws) {
+        if (ws.isAlive === false) return ws.terminate();
+        ws.isAlive = false;
+        ws.ping(() => {});
+      });
+    }, 30000);
 
-      return server;
-    } catch (error) {
-      console.error(`Worker ${process.pid} failed to start:`, error);
-      process.exit(1);
-    }
+    wss.on("close", function close() {
+      clearInterval(interval);
+    });
+
+    // Handle errors
+    wss.on("error", function (error) {
+      console.error("WebSocket server error:", error);
+    });
+
+    return wss;
   }
 
-  // Start the worker
-  setupWorker().catch((err) => {
-    console.error(`Worker ${process.pid} setup failed:`, err);
-    process.exit(1);
+  // Process event handlers
+  process.on("message", async (message) => {
+    if (message.type === "websocket_message" && wss) {
+      wss.clients.forEach(function (client) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(message.data);
+        }
+      });
+    }
   });
+
+  // Error handling
+  process.on("uncaughtException", (error) => {
+    console.error(`Worker ${process.pid} uncaught exception:`, error);
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    console.error(`Worker ${process.pid} unhandled rejection:`, reason);
+  });
+
+  // Start server
+  const PORT = process.env.PORT || 3000;
+
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Worker ${process.pid} listening on port ${PORT}`);
+  });
+
+  // Optimize server settings
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
+  server.timeout = 120000;
+  server.maxConnections = 10000;
+
+  // Enable sticky sessions
+  sticky.listen(server, PORT);
+
+  // Setup WebSocket server
+  setupWebSocketServer(server);
 }
 
 module.exports = { app };
