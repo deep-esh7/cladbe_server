@@ -24,20 +24,11 @@ jobs:
           ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
             cd /root/cladbe_server
 
-            # Backup .env file just in case
-            cp .env .env.backup
-
             echo "Stashing changes except .env..."
-            git stash push -- :/  # This stashes everything except untracked files (like .env)
+            git stash -- :/
 
             echo "Pulling latest changes..."
             git pull origin main
-
-            # Verify .env is still there
-            if [ ! -f .env ]; then
-              echo "Restoring .env from backup..."
-              cp .env.backup .env
-            fi
 
             echo "Installing dependencies..."
             npm install --production
@@ -50,23 +41,29 @@ jobs:
             echo "Starting PM2 with all instances..."
             pm2 start ecosystem.config.js --env production
 
+            # Wait for instances to start with a timeout
             echo "Waiting for instances to start..."
-            sleep 20
-
-            echo "Final process status:"
-            pm2 list
-
-            # Check if all 12 instances are online
-            ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
-            if [ "$ONLINE_COUNT" -eq 12 ]; then
-              echo "All 12 instances are running successfully"
-              pm2 save
-              rm .env.backup  # Remove backup if everything is successful
-              exit 0
-            else
-              echo "Not all instances are online (running: $ONLINE_COUNT)"
-              echo "Checking PM2 logs..."
-              pm2 logs --lines 20
-              exit 1
-            fi
+            TIMEOUT=60
+            START_TIME=$(date +%s)
+            
+            while true; do
+              CURRENT_TIME=$(date +%s)
+              ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+              
+              if [ $ELAPSED_TIME -gt $TIMEOUT ]; then
+                echo "Timeout waiting for instances"
+                exit 1
+              fi
+              
+              ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
+              echo "Currently $ONLINE_COUNT instances online..."
+              
+              if [ "$ONLINE_COUNT" -eq 12 ]; then
+                echo "All 12 instances are running successfully"
+                pm2 save
+                exit 0
+              fi
+              
+              sleep 5
+            done
           ENDSSH
