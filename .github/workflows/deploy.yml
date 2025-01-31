@@ -26,11 +26,7 @@ jobs:
           echo "$ENV_VARS" > .env
           scp -i ~/.ssh/github_deploy .env root@80.65.208.176:/root/cladbe_server/.env
 
-      - name: Stop Existing PM2
-        run: |
-          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'pm2 kill || true && rm -rf ~/.pm2'
-
-      - name: Deploy and Start
+      - name: Deploy
         run: |
           ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
             cd /root/cladbe_server
@@ -41,24 +37,27 @@ jobs:
             echo "Installing dependencies..."
             npm install --production
             
+            echo "Stopping PM2..."
+            pm2 kill || true
+            rm -rf ~/.pm2
+            
             echo "Starting PM2..."
             pm2 start ecosystem.config.js --env production
             
-            echo "Saving PM2 configuration..."
-            pm2 save
+            # Give more time for instances to start
+            echo "Waiting for instances to start..."
+            sleep 15
             
-            echo "Current processes:"
-            pm2 list
-          ENDSSH
-
-      - name: Verify Deployment
-        run: |
-          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
-            if pm2 list | grep -q "online"; then
-              echo "Deployment successful"
+            # Check if all instances are online
+            ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
+            if [ "$ONLINE_COUNT" -eq 4 ]; then
+              echo "All instances are online"
+              pm2 save
               pm2 list
+              exit 0
             else
-              echo "Deployment failed"
+              echo "Not all instances are online. Current status:"
+              pm2 list
               exit 1
             fi
           ENDSSH

@@ -7,14 +7,21 @@ module.exports = {
       ignore_watch: ["*"],
 
       // Cluster Configuration
-      instances: 4, // Set specific number instead of "max"
+      instances: 4,
       exec_mode: "cluster",
 
       // Resource Management
       max_memory_restart: "2G",
       node_args: "--max-old-space-size=4096",
 
+      // Base environment
       env: {
+        NODE_ENV: "development",
+        PORT: 3000,
+      },
+
+      // Production environment
+      env_production: {
         NODE_ENV: "production",
         PORT: 3000,
         DATABASE_URL: process.env.DATABASE_URL,
