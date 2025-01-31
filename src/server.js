@@ -160,13 +160,25 @@ if (cluster.isMaster) {
       next();
     });
 
-    // Add this near your other routes
-    app.get("/test-websocket", (req, res) => {
+    app.get("/test", (req, res) => {
       res.json({
         status: "ok",
-        websocketPath: "/ws",
-        workers: numCPUs,
-        wsHandler: !!wsHandler,
+        time: new Date().toISOString(),
+        headers: req.headers,
+      });
+    });
+
+    // WebSocket availability test
+    app.get("/ws-test", (req, res) => {
+      res.json({
+        status: "ok",
+        wsServerRunning: !!wsHandler,
+        wsClients: wsHandler ? wsHandler.wss.clients.size : 0,
+        serverInfo: {
+          port: process.env.PORT || 3000,
+          workers: numCPUs,
+          pid: process.pid,
+        },
       });
     });
 
