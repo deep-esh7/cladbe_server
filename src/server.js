@@ -377,6 +377,7 @@ if (cluster.isMaster) {
 
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  //
 
   // Handle worker messages
   process.on("message", async (message) => {
