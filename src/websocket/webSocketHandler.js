@@ -8,9 +8,8 @@ class WebSocketHandler {
 
     this.wsPool = new Map();
     this.maxConnectionsPerWorker = Math.floor(
-      10000 / process.env.WORKERS_COUNT || 4
+      20000 / process.env.WORKERS_COUNT || 4
     );
-
     // Enhanced message queue
     this.messageQueue = new Array(1000);
     this.queueIndex = 0;
@@ -80,8 +79,13 @@ class WebSocketHandler {
   setupWebSocket() {
     this.wss.on("connection", (ws, req) => {
       if (this.wsPool.size >= this.maxConnectionsPerWorker) {
-        ws.close(1013, "Worker at capacity");
-        return;
+        try {
+          process.send({ type: "get_loads" });
+          ws.close(1013, "Redirecting to different worker");
+          return;
+        } catch (error) {
+          console.error("Load balancing error:", error);
+        }
       }
 
       const clientId = uuidv4();

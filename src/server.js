@@ -72,6 +72,13 @@ if (cluster.isMaster) {
   // Handle messages from workers
   cluster.on("message", (worker, message) => {
     switch (message.type) {
+      case "get_loads":
+        worker.send({
+          type: "loads",
+          loads: Array.from(workerLoad.entries()),
+        });
+        break;
+
       case "store_update":
         // Broadcast to all other workers
         for (const [id, w] of workers) {
