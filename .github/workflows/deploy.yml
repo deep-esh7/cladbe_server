@@ -5,9 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  NODE_VERSION: "18"
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -21,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: "18"
           cache: "npm"
 
       - name: Setup SSH
@@ -33,116 +30,124 @@ jobs:
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
-          # Verify SSH key
-          echo "=== Verifying SSH Key ==="
-          ssh-keygen -l -f ~/.ssh/github_deploy
-
-          # Test SSH connection
-          ssh -i ~/.ssh/github_deploy -o StrictHostKeyChecking=no root@80.65.208.176 'echo "SSH connection successful"'
-
-      - name: Check Server Status
-        run: |
-          ssh -i ~/.ssh/github_deploy root@80.65.208.176 '
-            echo "=== System Resources ===" && \
-            free -m && \
-            df -h && \
-            ulimit -n && \
-            sysctl fs.file-max && \
-            pm2 list || echo "PM2 not running"
-          '
-
-      - name: Prepare Environment Variables
+      - name: Prepare Environment
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           echo "$ENV_VARS" > .env.production
-
-          # Verify env file creation (without showing contents)
-          if [ -f .env.production ]; then
-            echo "Environment file created successfully"
-          else
-            echo "Failed to create environment file"
-            exit 1
-          fi
 
       - name: Deploy Application
         run: |
           scp -i ~/.ssh/github_deploy .env.production root@80.65.208.176:/root/cladbe_server/.env
 
           ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
-            set -e  # Exit on any error
-            
-            echo "=== Starting Deployment ==="
-            
-            # Set system limits
-            ulimit -n 65535
-            echo "File descriptor limit set to: $(ulimit -n)"
+            set -e
             
             # Navigate to project directory
             cd /root/cladbe_server
-            
-            # Backup current version
-            timestamp=$(date +%Y%m%d_%H%M%S)
-            git tag -a "backup_$timestamp" -m "Backup before deployment"
-            
-            # Update code
+
+            # Create logs directory
+            mkdir -p logs
+
+            # Set system limits
+            ulimit -n 65535
+            echo "File descriptor limit set to: $(ulimit -n)"
+
+            # Pull latest changes
             echo "Pulling latest changes..."
             git pull origin main
-            
-            # Install dependencies
+
+            # Backup current node_modules (in case we need to rollback)
+            if [ -d "node_modules" ]; then
+              mv node_modules node_modules_backup
+            fi
+
+            # Clean install dependencies
             echo "Installing dependencies..."
-            npm ci --production || npm install --production
-            
-            # PM2 process management
+            npm clean-install --production || {
+              echo "npm install failed, restoring backup..."
+              rm -rf node_modules
+              mv node_modules_backup node_modules
+              exit 1
+            }
+
+            # Remove backup if install successful
+            rm -rf node_modules_backup
+
+            # Stop and clean existing PM2 processes
             echo "Managing PM2 processes..."
-            pm2 stop ecosystem.config.js || true
-            pm2 delete ecosystem.config.js || true
+            pm2 stop cladbe_server || true
+            pm2 delete cladbe_server || true
             pm2 flush
-            
-            # Clear Node.js cache
+
+            # Clear NPM cache
             npm cache clean --force
-            
-            # Start application
+
+            # Start application with initial instance
             echo "Starting application..."
-            NODE_ENV=production pm2 start ecosystem.config.js --env production --no-autorestart
-            
-            # Verify deployment
-            sleep 5
+            pm2 start ecosystem.config.js \
+              --name cladbe_server \
+              --env production \
+              --update-env
+
+            # Wait for initial startup
+            sleep 10
+
+            # Check if application is running
             if pm2 list | grep -q "online"; then
-              echo "=== Deployment Successful ==="
+              echo "Initial instance started successfully"
+              
+              # Scale up instances gradually
+              echo "Scaling up instances..."
+              for i in {2..4}; do
+                pm2 scale cladbe_server +1
+                sleep 5
+                
+                if ! pm2 list | grep -q "online"; then
+                  echo "Failed to scale to $i instances"
+                  pm2 logs cladbe_server --lines 50
+                  exit 1
+                fi
+              done
+              
+              echo "=== Final PM2 Status ==="
               pm2 list
+              
+              # Save PM2 configuration
+              pm2 save
+              
+              echo "=== Resource Usage ==="
+              free -m
+              df -h
+              
+              # Monitor logs for any immediate errors
+              sleep 5
+              if grep -i "error" logs/pm2.error.log; then
+                echo "Found errors in log file"
+                exit 1
+              fi
+              
             else
-              echo "=== Deployment Failed ==="
-              pm2 logs --lines 50
+              echo "Application failed to start"
+              pm2 logs cladbe_server --lines 50
               exit 1
             fi
-            
-            # Monitor resources
-            echo "=== Resource Usage ==="
-            free -m
-            df -h
-            
-            # Save PM2 process list
-            pm2 save
+
+            # Verify server response
+            if curl -s http://localhost:3000/health; then
+              echo "Server is responding correctly"
+            else
+              echo "Server is not responding"
+              exit 1
+            fi
+
           ENDSSH
 
       - name: Verify Deployment
-        if: success()
         run: |
-          echo "=== Verifying Deployment ==="
-          ssh -i ~/.ssh/github_deploy root@80.65.208.176 '
-            if curl -s http://localhost:3000/health 2>&1 > /dev/null; then
-              echo "Application is responding"
-              exit 0
-            else
-              echo "Application is not responding"
-              pm2 logs --lines 20
-              exit 1
-            fi
-          '
+          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'pm2 list && pm2 show cladbe_server'
 
       - name: Cleanup
         if: always()
         run: |
           rm -f .env.production
-          echo "=== Deployment Complete ==="
