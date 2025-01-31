@@ -4,10 +4,29 @@ const { v4: uuidv4 } = require("uuid");
 
 class WebSocketHandler {
   constructor(server, store) {
-    this.wss = new WebSocket.Server({ server, path: "/ws" });
+    this.wss = new WebSocket.Server({
+      server,
+      path: "/ws",
+      // Performance optimizations
+      perMessageDeflate: {
+        zlibDeflateOptions: {
+          chunkSize: 1024,
+          memLevel: 7,
+          level: 3,
+        },
+        zlibInflateOptions: {
+          chunkSize: 10 * 1024,
+        },
+        clientNoContextTakeover: true,
+        serverNoContextTakeover: true,
+        threshold: 1024,
+      },
+    });
+
     this.store = store;
     this.subscriptions = new Map();
     this.clientSubscriptions = new Map();
+    this.messageQueue = new Map();
     this.setupWebSocket();
 
     // Listen for store updates
@@ -21,9 +40,25 @@ class WebSocketHandler {
   setupWebSocket() {
     this.wss.on("connection", (ws, req) => {
       const clientId = uuidv4();
-      this.clientSubscriptions.set(ws, new Set());
+      const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
-      console.log(`New client connected: ${clientId}`);
+      // Rate limiting setup
+      this.messageQueue.set(clientId, {
+        messages: 0,
+        lastReset: Date.now(),
+        timer: setInterval(() => {
+          const client = this.messageQueue.get(clientId);
+          if (client) {
+            client.messages = 0;
+            client.lastReset = Date.now();
+          }
+        }, 1000),
+      });
+
+      this.clientSubscriptions.set(ws, new Set());
+      ws.binaryType = "arraybuffer"; // More efficient binary handling
+
+      console.log(`New client connected: ${clientId} from ${ip}`);
 
       ws.isAlive = true;
       ws.on("pong", () => {
@@ -32,6 +67,15 @@ class WebSocketHandler {
 
       ws.on("message", async (message) => {
         try {
+          // Rate limiting check
+          const client = this.messageQueue.get(clientId);
+          if (client.messages >= 100) {
+            // 100 messages per second limit
+            this.sendError(ws, "Rate limit exceeded");
+            return;
+          }
+          client.messages++;
+
           const data = JSON.parse(message);
           await this.handleMessage(ws, clientId, data);
         } catch (error) {
@@ -41,6 +85,13 @@ class WebSocketHandler {
       });
 
       ws.on("close", () => {
+        clearInterval(this.messageQueue.get(clientId)?.timer);
+        this.messageQueue.delete(clientId);
+        this.handleClientDisconnect(ws, clientId);
+      });
+
+      ws.on("error", (error) => {
+        console.error(`WebSocket error for client ${clientId}:`, error);
         this.handleClientDisconnect(ws, clientId);
       });
 
@@ -70,29 +121,41 @@ class WebSocketHandler {
   }
 
   async handleMessage(ws, clientId, message) {
-    console.log(
-      `Processing message type: ${message.type} from client ${clientId}`
-    );
+    const startTime = process.hrtime();
 
-    switch (message.type) {
-      case "subscribe":
-        await this.handleSubscribe(ws, clientId, message);
-        break;
-      case "unsubscribe":
-        await this.handleUnsubscribe(ws, message.subscriptionId);
-        break;
-      case "ping":
-        this.handlePing(ws, message);
-        break;
-      default:
-        this.sendError(ws, "Unknown message type");
+    try {
+      switch (message.type) {
+        case "subscribe":
+          await this.handleSubscribe(ws, clientId, message);
+          break;
+        case "unsubscribe":
+          await this.handleUnsubscribe(ws, message.subscriptionId);
+          break;
+        case "ping":
+          this.handlePing(ws, message);
+          break;
+        default:
+          this.sendError(ws, "Unknown message type");
+      }
+
+      // Performance monitoring
+      const [seconds, nanoseconds] = process.hrtime(startTime);
+      const duration = seconds * 1000 + nanoseconds / 1000000;
+      if (duration > 100) {
+        // Log slow operations
+        console.warn(
+          `Slow message handling (${duration.toFixed(2)}ms): ${message.type}`
+        );
+      }
+    } catch (error) {
+      console.error("Message handling error:", error);
+      this.sendError(ws, error.message);
     }
   }
 
   async handleSubscribe(ws, clientId, message) {
     const subscriptionId = message.subscriptionId || uuidv4();
     try {
-      // Store subscription details
       this.subscriptions.set(subscriptionId, {
         ws,
         clientId,
@@ -101,16 +164,14 @@ class WebSocketHandler {
 
       this.clientSubscriptions.get(ws).add(subscriptionId);
 
-      // Store in local store for cross-worker sharing
       const storeKey = `subscription:${subscriptionId}`;
-      await this.store.set(storeKey, message.data, { ttl: 300 }); // 5 minute TTL
+      await this.store.set(storeKey, message.data, { ttl: 300 });
 
       this.sendMessage(ws, {
         type: "subscribed",
         subscriptionId,
       });
 
-      // Send initial data if available
       await this.handleStoreUpdate(storeKey, message.data);
     } catch (error) {
       console.error("Subscription failed:", error);
@@ -150,7 +211,7 @@ class WebSocketHandler {
   handlePing(ws, message) {
     this.sendMessage(ws, {
       type: "pong",
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
       data: message.data,
     });
   }
@@ -169,12 +230,21 @@ class WebSocketHandler {
 
   sendMessage(ws, message) {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(
-        JSON.stringify({
+      try {
+        const data = JSON.stringify({
           ...message,
-          timestamp: new Date().toISOString(),
-        })
-      );
+          timestamp: Date.now(),
+        });
+
+        if (data.length > 1024 * 50) {
+          // 50KB threshold
+          console.warn(`Large message being sent: ${data.length} bytes`);
+        }
+
+        ws.send(data);
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
     }
   }
 
@@ -183,7 +253,7 @@ class WebSocketHandler {
       type: "error",
       error,
       subscriptionId,
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
     });
   }
 
@@ -197,6 +267,11 @@ class WebSocketHandler {
 
   async gracefulShutdown() {
     console.log("Starting WebSocket graceful shutdown");
+
+    // Clear all intervals
+    this.messageQueue.forEach((client) => {
+      clearInterval(client.timer);
+    });
 
     this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {

@@ -3,55 +3,63 @@ const cluster = require("cluster");
 const EventEmitter = require("events");
 
 class LocalStore extends EventEmitter {
-  constructor(db) {
+  constructor() {
     super();
     this._store = new Map();
-    this._db = db;
-    this._prefix = "localstore:";
+    this._ttlStore = new Map();
     this._workerId = process.pid;
     this._setupIPC();
-    this._setupTableIfNeeded();
-  }
-
-  async _setupTableIfNeeded() {
-    try {
-      await this._db.query(`
-        CREATE TABLE IF NOT EXISTS local_store_data (
-          key TEXT PRIMARY KEY,
-          value JSONB,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          worker_id TEXT
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_local_store_updated 
-        ON local_store_data(updated_at);
-      `);
-    } catch (error) {
-      console.error("Error setting up local store table:", error);
-    }
   }
 
   _setupIPC() {
     if (!cluster.isMaster) {
       process.on("message", (message) => {
         if (message.type === "store_update") {
-          const { key, value, workerId } = message.data;
+          const { key, value, ttl, workerId, operation } = message.data;
           if (workerId !== this._workerId) {
-            this._store.set(key, value);
-            this.emit("update", { key, value, source: "ipc" });
+            if (operation === "delete") {
+              this._handleDelete(key);
+            } else {
+              this._handleSet(key, value, ttl);
+            }
           }
         }
       });
     }
   }
 
-  _broadcastUpdate(key, value) {
+  _handleSet(key, value, ttl) {
+    this._store.set(key, value);
+    if (ttl) {
+      const existingTimeout = this._ttlStore.get(key);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+      const timeout = setTimeout(() => this.del(key), ttl * 1000);
+      this._ttlStore.set(key, timeout);
+    }
+    this.emit("update", { key, value, source: "ipc" });
+  }
+
+  _handleDelete(key) {
+    const timeout = this._ttlStore.get(key);
+    if (timeout) {
+      clearTimeout(timeout);
+      this._ttlStore.delete(key);
+    }
+    this._store.delete(key);
+    this.emit("delete", { key, source: "ipc" });
+  }
+
+  _broadcastUpdate(key, value, ttl, operation = "set") {
     if (!cluster.isMaster && process.send) {
       process.send({
         type: "store_update",
         data: {
           key,
           value,
+          ttl,
+          operation,
           workerId: this._workerId,
         },
       });
@@ -59,29 +67,10 @@ class LocalStore extends EventEmitter {
   }
 
   async set(key, value, options = {}) {
-    const fullKey = this._prefix + key;
-    const { ttl } = options;
-
     try {
-      this._store.set(key, value);
-
-      await this._db.query(
-        `INSERT INTO local_store_data (key, value, worker_id)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (key) 
-         DO UPDATE SET 
-           value = $2,
-           updated_at = CURRENT_TIMESTAMP,
-           worker_id = $3`,
-        [fullKey, JSON.stringify(value), this._workerId]
-      );
-
-      this._broadcastUpdate(key, value);
-
-      if (ttl) {
-        setTimeout(() => this.del(key), ttl * 1000);
-      }
-
+      const { ttl } = options;
+      this._handleSet(key, value, ttl);
+      this._broadcastUpdate(key, value, ttl);
       this.emit("update", { key, value, source: "local" });
       return true;
     } catch (error) {
@@ -90,38 +79,18 @@ class LocalStore extends EventEmitter {
     }
   }
 
-  async get(key) {
-    if (this._store.has(key)) {
-      return this._store.get(key);
-    }
+  get(key) {
+    return this._store.get(key) || null;
+  }
 
-    try {
-      const fullKey = this._prefix + key;
-      const result = await this._db.query(
-        "SELECT value FROM local_store_data WHERE key = $1",
-        [fullKey]
-      );
-
-      if (result.rows.length > 0) {
-        const value = result.rows[0].value;
-        this._store.set(key, value);
-        return value;
-      }
-    } catch (error) {
-      console.error("Error getting value:", error);
-    }
-
-    return null;
+  has(key) {
+    return this._store.has(key);
   }
 
   async del(key) {
-    const fullKey = this._prefix + key;
     try {
-      this._store.delete(key);
-      await this._db.query("DELETE FROM local_store_data WHERE key = $1", [
-        fullKey,
-      ]);
-      this._broadcastUpdate(key, null);
+      this._handleDelete(key);
+      this._broadcastUpdate(key, null, null, "delete");
       this.emit("delete", { key, source: "local" });
       return true;
     } catch (error) {
@@ -130,43 +99,42 @@ class LocalStore extends EventEmitter {
     }
   }
 
-  async getAll(pattern = "*") {
-    try {
-      const result = await this._db.query(
-        `SELECT key, value FROM local_store_data 
-         WHERE key LIKE $1`,
-        [this._prefix + pattern.replace("*", "%")]
-      );
-
-      return result.rows.reduce((acc, row) => {
-        const key = row.key.replace(this._prefix, "");
-        acc[key] = row.value;
-        return acc;
-      }, {});
-    } catch (error) {
-      console.error("Error getting all values:", error);
-      return {};
-    }
+  keys() {
+    return Array.from(this._store.keys());
   }
 
-  async cleanup(maxAge = 3600) {
-    try {
-      const result = await this._db.query(
-        `DELETE FROM local_store_data 
-         WHERE updated_at < NOW() - INTERVAL '1 second' * $1
-         RETURNING key`,
-        [maxAge]
-      );
+  values() {
+    return Array.from(this._store.values());
+  }
 
-      result.rows.forEach((row) => {
-        const key = row.key.replace(this._prefix, "");
-        this._store.delete(key);
-      });
+  entries() {
+    return Array.from(this._store.entries());
+  }
 
-      return result.rowCount;
-    } catch (error) {
-      console.error("Error during cleanup:", error);
-      return 0;
+  size() {
+    return this._store.size;
+  }
+
+  clear() {
+    const keys = this.keys();
+    keys.forEach((key) => this.del(key));
+  }
+
+  getSnapshot() {
+    const snapshot = {};
+    for (const [key, value] of this._store.entries()) {
+      snapshot[key] = value;
+    }
+    return snapshot;
+  }
+
+  cleanup() {
+    // Clean up any expired TTL entries
+    const now = Date.now();
+    for (const [key, timeout] of this._ttlStore.entries()) {
+      if (timeout._idleStart + timeout._idleTimeout < now) {
+        this.del(key);
+      }
     }
   }
 }
