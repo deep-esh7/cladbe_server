@@ -157,6 +157,7 @@ if (cluster.isMaster) {
       process.exit(0);
     }, 5000);
   });
+  //
 } else {
   // Worker process
   async function setupWorker() {
