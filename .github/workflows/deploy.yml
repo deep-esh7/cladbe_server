@@ -34,38 +34,23 @@ jobs:
             pm2 kill || true
             rm -rf ~/.pm2
             
-            # Temporarily enable logging for debug
-            mkdir -p logs
+            echo "Starting PM2 with all instances..."
+            pm2 start ecosystem.config.js --env production
             
-            echo "Starting single instance first..."
-            # Start with single instance for testing
-            PM2_SILENT=true pm2 start ecosystem.config.js --env production --instances 1
-            
-            echo "Waiting for instance to start..."
+            echo "Waiting for instances to start..."
             sleep 10
             
-            echo "Process status:"
+            echo "Final process status:"
             pm2 list
             
-            # If single instance is running, scale up
-            if pm2 list | grep "online" > /dev/null; then
-              echo "Scaling to multiple instances..."
-              pm2 scale cladbe_server 4
-              sleep 10
-              pm2 list
-              
-              # Check final status
-              ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
-              if [ "$ONLINE_COUNT" -eq 4 ]; then
-                echo "All instances are online"
-                pm2 save
-                exit 0
-              else
-                echo "Failed to scale to all instances"
-                exit 1
-              fi
+            # Check if all instances are online
+            ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
+            if [ "$ONLINE_COUNT" -eq 4 ]; then
+              echo "All instances are running successfully"
+              pm2 save
+              exit 0
             else
-              echo "Initial instance failed to start"
+              echo "Not all instances are online (running: $ONLINE_COUNT)"
               exit 1
             fi
           ENDSSH
