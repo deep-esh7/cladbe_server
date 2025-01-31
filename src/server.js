@@ -32,7 +32,7 @@ require("events").EventEmitter.defaultMaxListeners = 0;
 process.setMaxListeners(0);
 
 // Calculate optimal worker count - use 75% of available CPUs
-const WORKERS_COUNT = Math.max(Math.floor(os.cpus().length * 0.75), 1);
+const WORKERS_COUNT = os.cpus().length;
 
 // Create express app instance
 const app = express();
@@ -44,8 +44,8 @@ if (cluster.isMaster) {
 
   // Calculate memory allocation
   const totalMem = os.totalmem();
-  const masterMemory = Math.floor(totalMem * 0.1); // 10% for master
-  const workerMemory = Math.floor((totalMem * 0.9) / WORKERS_COUNT);
+  const masterMemory = Math.floor(totalMem * 0.05); // 5% for master instead of 10%
+  const workerMemory = Math.floor((totalMem * 0.95) / WORKERS_COUNT); // More memory per worker
 
   // Worker management
   const workers = new Map();
@@ -100,7 +100,7 @@ if (cluster.isMaster) {
       NODE_OPTIONS: `--max-old-space-size=${Math.floor(
         workerMemory / (1024 * 1024)
       )}`,
-      UV_THREADPOOL_SIZE: 8,
+      UV_THREADPOOL_SIZE: 4, // Optimal thread pool size per worker
     });
     workers.set(worker.id, worker);
     workerLoad.set(worker.id, 0);
@@ -309,11 +309,25 @@ if (cluster.isMaster) {
       });
 
       // Initialize WebSocket handler
+      // Update WebSocket server settings
       const wsOptions = {
         maxPayload: 100 * 1024,
-        backlog: 10000,
+        backlog: 20000, // Increased from 10000
         clientTracking: true,
-        maxConnections: 10000,
+        maxConnections: 20000, // Increased from 10000
+        perMessageDeflate: {
+          zlibDeflateOptions: {
+            level: 1,
+            memLevel: 8, // Increased from 7
+            chunkSize: 16 * 1024,
+          },
+          zlibInflateOptions: {
+            chunkSize: 16 * 1024,
+          },
+          serverMaxWindowBits: 15, // Increased from 10
+          concurrencyLimit: 20, // Increased from 10
+          threshold: 1024,
+        },
       };
 
       wsHandler = new WebSocketHandler(server, store, wsOptions);

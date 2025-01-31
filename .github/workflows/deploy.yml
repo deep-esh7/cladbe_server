@@ -38,19 +38,20 @@ jobs:
             pm2 start ecosystem.config.js --env production
             
             echo "Waiting for instances to start..."
-            sleep 10
+            sleep 15  # Increased wait time for more instances
             
             echo "Final process status:"
             pm2 list
             
-            # Check if all instances are online
+            # Check if all 12 instances are online
             ONLINE_COUNT=$(pm2 list | grep "online" | wc -l)
-            if [ "$ONLINE_COUNT" -eq 4 ]; then
-              echo "All instances are running successfully"
+            if [ "$ONLINE_COUNT" -eq 12 ]; then
+              echo "All 12 instances are running successfully"
               pm2 save
               exit 0
             else
               echo "Not all instances are online (running: $ONLINE_COUNT)"
+              pm2 logs --lines 20
               exit 1
             fi
           ENDSSH

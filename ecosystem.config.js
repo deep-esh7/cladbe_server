@@ -6,24 +6,18 @@ module.exports = {
       watch: false,
       ignore_watch: ["*"],
 
-      // Cluster Configuration
-      instances: 4,
+      // Use all cores
+      instances: 12, // Use all CPU cores
       exec_mode: "cluster",
 
       // Resource Management
-      max_memory_restart: "2G",
+      max_memory_restart: "4G", // Increased from 2G
       node_args: "--max-old-space-size=4096",
 
-      // Base environment
-      env: {
-        NODE_ENV: "development",
-        PORT: 3000,
-      },
-
-      // Production environment
       env_production: {
         NODE_ENV: "production",
         PORT: 3000,
+        UV_THREADPOOL_SIZE: 4, // Optimal thread pool size
         DATABASE_URL: process.env.DATABASE_URL,
         FIREBASE_CONFIG: process.env.FIREBASE_CONFIG,
         PGDATABASE: process.env.PGDATABASE,
@@ -36,9 +30,9 @@ module.exports = {
       },
 
       // Performance Settings
-      kill_timeout: 6000,
+      kill_timeout: 10000, // Increased from 6000
       exp_backoff_restart_delay: 100,
-      max_restarts: 5,
+      max_restarts: 10, // Increased from 5
       restart_delay: 4000,
       min_uptime: "30s",
 
