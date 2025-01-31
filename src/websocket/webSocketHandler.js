@@ -1,14 +1,16 @@
 // WebSocketHandler.js
 const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
+const os = require("os");
 
 class WebSocketHandler {
   constructor(server, store) {
     // Configure WebSocket server with optimized settings
 
     this.wsPool = new Map();
+    // In WebSocketHandler.js constructor
     this.maxConnectionsPerWorker = Math.floor(
-      20000 / process.env.WORKERS_COUNT || 4
+      20000 / (process.env.WORKERS_COUNT || os.cpus().length)
     );
     // Enhanced message queue
     this.messageQueue = new Array(1000);
@@ -75,14 +77,24 @@ class WebSocketHandler {
       }
     }
   }
-
   setupWebSocket() {
-    this.wss.on("connection", (ws, req) => {
+    this.wss.on("connection", async (ws, req) => {
       if (this.wsPool.size >= this.maxConnectionsPerWorker) {
         try {
-          process.send({ type: "get_loads" });
-          ws.close(1013, "Redirecting to different worker");
-          return;
+          const loads = await new Promise((resolve) => {
+            process.send({ type: "get_loads" });
+            process.once("message", (msg) => {
+              if (msg.type === "loads") resolve(msg.loads);
+            });
+          });
+
+          const minLoad = Math.min(...loads.map((l) => l[1]));
+          const currentLoad = this.wsPool.size / this.maxConnectionsPerWorker;
+
+          if (currentLoad > minLoad) {
+            ws.close(1013, "Redirecting to different worker");
+            return;
+          }
         } catch (error) {
           console.error("Load balancing error:", error);
         }
@@ -91,9 +103,8 @@ class WebSocketHandler {
       const clientId = uuidv4();
       this.wsPool.set(clientId, ws);
 
+      // Rest of your existing connection handling code
       const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-
-      // Initialize client tracking
       this.clientSubscriptions.set(ws, new Set());
       this.batchedMessages.set(clientId, []);
       this.clientStats.set(clientId, {
@@ -103,12 +114,9 @@ class WebSocketHandler {
         ip: ip,
       });
 
-      // Set binary type for better performance
       ws.binaryType = "arraybuffer";
-
       console.log(`New client connected: ${clientId} from ${ip}`);
 
-      // Setup rate limiting
       const rateLimitState = {
         messages: 0,
         lastReset: Date.now(),
@@ -119,7 +127,7 @@ class WebSocketHandler {
       };
 
       ws.isAlive = true;
-
+      // Rest of your event handlers
       ws.on("pong", () => {
         ws.isAlive = true;
         this.updateClientStats(clientId, "pong");
@@ -127,10 +135,8 @@ class WebSocketHandler {
 
       ws.on("message", async (message) => {
         try {
-          // Rate limiting
           rateLimitState.messages++;
           if (rateLimitState.messages > 100) {
-            // 100 messages per second limit
             this.sendError(ws, "Rate limit exceeded");
             return;
           }
@@ -165,7 +171,6 @@ class WebSocketHandler {
 
     this.setupHeartbeat();
   }
-
   updateClientStats(clientId, activity) {
     const stats = this.clientStats.get(clientId);
     if (stats) {
