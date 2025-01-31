@@ -7,6 +7,7 @@ const morgan = require("morgan");
 const path = require("path");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const WebSocket = require("ws"); // Add WebSocket import
 const WebSocketHandler = require("./websocket/webSocketHandler.js");
 const { fetchAgentData } = require("./test/testCallFetch");
 const db = require("./db/connection.js");
@@ -95,13 +96,15 @@ if (cluster.isMaster) {
 } else {
   // Worker process
   async function setupWorker() {
+    await initializeSqlComponents(); // Ensure SQL components are initialized first
+
     // Basic server setup
     app.set("trust proxy", true);
     app.disable("x-powered-by");
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 2000, // Increased for higher concurrency
+      max: 2000,
       standardHeaders: true,
       legacyHeaders: false,
       trustProxy: true,
@@ -119,6 +122,8 @@ if (cluster.isMaster) {
         "Authorization",
         "Origin",
         "Sec-WebSocket-Protocol",
+        "Connection",
+        "Upgrade",
       ],
       credentials: true,
       maxAge: 86400,
@@ -126,24 +131,12 @@ if (cluster.isMaster) {
 
     app.use(
       helmet({
-        contentSecurityPolicy: false, // Disable CSP for testing
+        contentSecurityPolicy: false,
         crossOriginEmbedderPolicy: false,
         crossOriginResourcePolicy: false,
         crossOriginOpenerPolicy: false,
       })
     );
-
-    // Update WebSocket server options
-    this.wss = new WebSocket.Server({
-      server,
-      path: "/ws",
-      perMessageDeflate: false,
-      clientTracking: true,
-      verifyClient: (info) => {
-        // Accept all connections for testing
-        return true;
-      },
-    });
 
     app.use(cors(corsOptions));
     app.use(express.json({ limit: "50mb" }));
@@ -167,17 +160,16 @@ if (cluster.isMaster) {
       next();
     });
 
-    // Health check route
+    // Routes
     app.get("/health", (req, res) => {
-      res.status(200).json("wuhuuuuu chall gya morni");
+      res.status(200).json("Health check OK");
     });
 
-    // Routes
     app.use("/api/leads", leadsRoutes);
     app.post("/api/fetchAgentData", fetchAgentData);
     app.post("/fetchAgentData", fetchAgentData);
 
-    // SQL Query Routes - Modified to return mock responses
+    // Mock API routes
     app.post("/api/sql/query", async (req, res) => {
       res.json({ success: true, data: [] });
     });
@@ -186,7 +178,6 @@ if (cluster.isMaster) {
       res.json({ success: true, data: [] });
     });
 
-    // Table Operations
     app.get("/api/sql/table/:tableName/exists", async (req, res) => {
       res.json({ success: true, exists: false });
     });
@@ -196,20 +187,18 @@ if (cluster.isMaster) {
     });
 
     app.post("/api/sql/table/create", async (req, res) => {
-      res.json({
-        success: true,
-        message: `Table creation skipped`,
-      });
+      res.json({ success: true, message: "Table creation skipped" });
     });
 
     app.delete("/api/sql/table/:tableName", async (req, res) => {
       res.json({ success: true });
     });
 
-    // Transaction Routes
     app.post("/api/sql/transaction-begin", async (req, res) => {
-      const transactionId = Math.random().toString(36).substring(7);
-      res.json({ success: true, transactionId });
+      res.json({
+        success: true,
+        transactionId: Math.random().toString(36).substring(7),
+      });
     });
 
     app.post("/api/sql/transaction-commit", async (req, res) => {
@@ -220,7 +209,6 @@ if (cluster.isMaster) {
       res.json({ success: true });
     });
 
-    // Batch Operations
     app.post("/api/sql/batch", async (req, res) => {
       res.json({ success: true, data: [] });
     });
@@ -229,7 +217,7 @@ if (cluster.isMaster) {
     app.use((err, req, res, next) => {
       const timestamp = new Date().toISOString();
       console.error(`[${timestamp}] Worker ${process.pid} Error:`, err);
-      ////
+
       const response = {
         success: false,
         error: err.message || "Internal Server Error",
@@ -260,9 +248,14 @@ if (cluster.isMaster) {
       server.timeout = 120000;
       server.maxConnections = 10000;
 
-      // Initialize WebSocket handler
+      // Initialize WebSocket handler with proper error handling
       console.log(`Worker ${process.pid} initializing WebSocket...`);
-      wsHandler = new WebSocketHandler(server, clientSqlHelper, null);
+      try {
+        wsHandler = new WebSocketHandler(server, clientSqlHelper, null);
+      } catch (error) {
+        console.error("Error initializing WebSocket handler:", error);
+        throw error;
+      }
 
       // Apply sticky sessions
       const stickyServer = sticky.listen(server, PORT);
@@ -334,7 +327,7 @@ if (cluster.isMaster) {
       return server;
     } catch (error) {
       console.error(`Worker ${process.pid} failed to start:`, error);
-      process.exit(1);
+      throw error;
     }
   }
 
