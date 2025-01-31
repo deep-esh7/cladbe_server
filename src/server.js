@@ -217,7 +217,7 @@ if (cluster.isMaster) {
     app.use((err, req, res, next) => {
       const timestamp = new Date().toISOString();
       console.error(`[${timestamp}] Worker ${process.pid} Error:`, err);
-
+      //
       const response = {
         success: false,
         error: err.message || "Internal Server Error",
