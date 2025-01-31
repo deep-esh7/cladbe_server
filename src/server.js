@@ -29,7 +29,6 @@ let wsHandler;
 async function initializeSqlComponents() {
   console.log("Skipping SQL initialization...");
 
-  // Return mock sql executor and client helper
   sqlExecutor = {
     execute: async () => ({ rows: [] }),
   };
@@ -60,6 +59,7 @@ if (cluster.isMaster) {
 
   const workers = new Map();
 
+  // Create worker processes
   for (let i = 0; i < numCPUs; i++) {
     const worker = cluster.fork();
     workers.set(worker.id, worker);
@@ -101,7 +101,7 @@ if (cluster.isMaster) {
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 1000,
+      max: 2000, // Increased for higher concurrency
       standardHeaders: true,
       legacyHeaders: false,
       trustProxy: true,
@@ -233,96 +233,13 @@ if (cluster.isMaster) {
       res.status(err.status || 500).json(response);
     });
 
-    // Initialize WebSocket with sticky sessions
-    async function initializeWebSocket(server) {
-      try {
-        console.log(`Worker ${process.pid} initializing WebSocket...`);
-
-        // Initialize WebSocket handler first
-        wsHandler = new WebSocketHandler(server, clientSqlHelper, null);
-
-        return true;
-      } catch (error) {
-        console.error("Failed to initialize WebSocket:", error);
-        return false;
-      }
-    }
-
-    // Graceful shutdown for worker
-    async function gracefulShutdown(signal) {
-      console.log(
-        `Worker ${process.pid} received ${signal}. Starting graceful shutdown...`
-      );
-
-      const shutdownTimeout = setTimeout(() => {
-        console.error(
-          "Could not close connections in time, forcefully shutting down"
-        );
-        process.exit(1);
-      }, 30000);
-
-      try {
-        const shutdown = {
-          websocket: false,
-        };
-
-        if (wsHandler) {
-          console.log("Closing WebSocket connections...");
-          try {
-            await wsHandler.gracefulShutdown();
-            shutdown.websocket = true;
-            console.log("WebSocket server closed successfully");
-          } catch (error) {
-            console.error("Error closing WebSocket server:", error);
-          }
-        }
-
-        clearTimeout(shutdownTimeout);
-        console.log("Shutdown status:", shutdown);
-
-        if (shutdown.websocket) {
-          console.log("Graceful shutdown completed successfully");
-          process.exit(0);
-        } else {
-          console.log("Partial shutdown completed with errors");
-          process.exit(1);
-        }
-      } catch (error) {
-        console.error(`Worker ${process.pid} shutdown error:`, error);
-        process.exit(1);
-      }
-    }
-
-    // Handle worker messages
-    process.on("message", async (message) => {
-      if (message.type === "shutdown") {
-        await gracefulShutdown("SIGTERM");
-      } else if (message.type === "websocket_message" && wsHandler) {
-        wsHandler.broadcast(message.data);
-      }
-    });
-
-    // Process event handlers
-    process.on("uncaughtException", (error) => {
-      console.error(`Worker ${process.pid} uncaught exception:`, error);
-      console.error("Stack:", error.stack);
-      gracefulShutdown("UNCAUGHT_EXCEPTION");
-    });
-
-    process.on("unhandledRejection", (reason, promise) => {
-      console.error(`Worker ${process.pid} unhandled rejection:`, reason);
-      gracefulShutdown("UNHANDLED_REJECTION");
-    });
-
-    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-
     // Start server
     const PORT = process.env.PORT || 3000;
 
     try {
       console.log(`Worker ${process.pid} starting...`);
 
+      // Create HTTP server
       const server = http.createServer(app);
 
       // Optimize server settings
@@ -331,18 +248,14 @@ if (cluster.isMaster) {
       server.timeout = 120000;
       server.maxConnections = 10000;
 
-      // Initialize WebSocket before sticky sessions
-      const wsInitialized = await initializeWebSocket(server);
-      if (!wsInitialized) throw new Error("Failed to initialize WebSocket");
+      // Initialize WebSocket handler
+      console.log(`Worker ${process.pid} initializing WebSocket...`);
+      wsHandler = new WebSocketHandler(server, clientSqlHelper, null);
 
-      // Setup sticky sessions
-      if (!sticky.listen(server, PORT)) {
-        // Master process
-        server.once("listening", () => {
-          console.log("Master server is listening on port", PORT);
-        });
-      } else {
-        // Worker process
+      // Apply sticky sessions
+      const stickyServer = sticky.listen(server, PORT);
+
+      if (stickyServer) {
         server.once("listening", () => {
           console.log("=".repeat(50));
           console.log(`Worker ${process.pid} listening on port ${PORT}`);
@@ -351,6 +264,59 @@ if (cluster.isMaster) {
           console.log(`Memory usage: ${JSON.stringify(process.memoryUsage())}`);
           console.log("=".repeat(50));
         });
+      }
+
+      // Handle worker messages
+      process.on("message", async (message) => {
+        if (message.type === "shutdown") {
+          await gracefulShutdown("SIGTERM");
+        } else if (message.type === "websocket_message" && wsHandler) {
+          wsHandler.broadcast(message.data);
+        }
+      });
+
+      // Process event handlers
+      process.on("uncaughtException", (error) => {
+        console.error(`Worker ${process.pid} uncaught exception:`, error);
+        console.error("Stack:", error.stack);
+        gracefulShutdown("UNCAUGHT_EXCEPTION");
+      });
+
+      process.on("unhandledRejection", (reason, promise) => {
+        console.error(`Worker ${process.pid} unhandled rejection:`, reason);
+        gracefulShutdown("UNHANDLED_REJECTION");
+      });
+
+      process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+      process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+      // Graceful shutdown handler
+      async function gracefulShutdown(signal) {
+        console.log(
+          `Worker ${process.pid} received ${signal}. Starting graceful shutdown...`
+        );
+
+        const shutdownTimeout = setTimeout(() => {
+          console.error(
+            "Could not close connections in time, forcefully shutting down"
+          );
+          process.exit(1);
+        }, 30000);
+
+        try {
+          if (wsHandler) {
+            console.log("Closing WebSocket connections...");
+            await wsHandler.gracefulShutdown();
+            console.log("WebSocket server closed successfully");
+          }
+
+          clearTimeout(shutdownTimeout);
+          console.log("Graceful shutdown completed");
+          process.exit(0);
+        } catch (error) {
+          console.error(`Worker ${process.pid} shutdown error:`, error);
+          process.exit(1);
+        }
       }
 
       return server;
