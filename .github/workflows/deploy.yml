@@ -8,18 +8,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: "18"
-          cache: "npm"
 
       - name: Setup SSH
         env:
@@ -30,126 +23,18 @@ jobs:
           chmod 600 ~/.ssh/github_deploy
           ssh-keyscan -H 80.65.208.176 >> ~/.ssh/known_hosts
 
-      - name: Prepare Environment
+      - name: Deploy
         env:
           ENV_VARS: ${{ secrets.ENV_VARS }}
         run: |
           echo "$ENV_VARS" > .env.production
-
-      - name: Deploy Application
-        run: |
           scp -i ~/.ssh/github_deploy .env.production root@80.65.208.176:/root/cladbe_server/.env
 
           ssh -i ~/.ssh/github_deploy root@80.65.208.176 'bash -s' << 'ENDSSH'
-            set -e
-            
-            # Navigate to project directory
             cd /root/cladbe_server
-
-            # Create logs directory
-            mkdir -p logs
-
-            # Set system limits
-            ulimit -n 65535
-            echo "File descriptor limit set to: $(ulimit -n)"
-
-            # Pull latest changes
-            echo "Pulling latest changes..."
             git pull origin main
-
-            # Backup current node_modules (in case we need to rollback)
-            if [ -d "node_modules" ]; then
-              mv node_modules node_modules_backup
-            fi
-
-            # Clean install dependencies
-            echo "Installing dependencies..."
-            npm clean-install --production || {
-              echo "npm install failed, restoring backup..."
-              rm -rf node_modules
-              mv node_modules_backup node_modules
-              exit 1
-            }
-
-            # Remove backup if install successful
-            rm -rf node_modules_backup
-
-            # Complete PM2 cleanup
-            echo "Performing complete PM2 cleanup..."
-            pm2 kill || true
-            pm2 flush || true
-            
-            # Clear PM2 saved state
-            echo "Clearing PM2 saved state..."
+            npm install --production
+            pm2 kill
             rm -rf ~/.pm2
-            
-            # Reinitialize PM2
-            echo "Reinitializing PM2..."
-            pm2 update
-            
-            # Clear NPM cache
-            npm cache clean --force
-
-            # Start application with basic config
-            echo "Starting application..."
             pm2 start ecosystem.config.js --env production
-            
-            # Wait for initial startup
-            sleep 10
-
-            # Check if application is running
-            if pm2 list | grep -q "online"; then
-              echo "Initial instance started successfully"
-              
-              # Scale up instances gradually
-              echo "Scaling up instances..."
-              pm2 scale cladbe_server 2
-              sleep 5
-              
-              if ! pm2 list | grep -q "online"; then
-                echo "Failed to scale instances"
-                pm2 logs cladbe_server --lines 50
-                exit 1
-              fi
-              
-              echo "=== Final PM2 Status ==="
-              pm2 list
-              
-              # Save PM2 configuration
-              pm2 save
-              
-              echo "=== Resource Usage ==="
-              free -m
-              df -h
-              
-              # Monitor logs for any immediate errors
-              sleep 5
-              if grep -i "error" logs/pm2.error.log 2>/dev/null; then
-                echo "Found errors in log file"
-                exit 1
-              fi
-              
-            else
-              echo "Application failed to start"
-              pm2 logs cladbe_server --lines 50
-              exit 1
-            fi
-
-            # Verify server response
-            if curl -s http://localhost:3000/health; then
-              echo "Server is responding correctly"
-            else
-              echo "Server is not responding"
-              exit 1
-            fi
-
           ENDSSH
-
-      - name: Verify Deployment
-        run: |
-          ssh -i ~/.ssh/github_deploy root@80.65.208.176 'pm2 list && pm2 show cladbe_server'
-
-      - name: Cleanup
-        if: always()
-        run: |
-          rm -f .env.production
