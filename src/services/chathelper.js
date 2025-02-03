@@ -1,5 +1,5 @@
 const { generateUniqueId } = require("../helpers/randomId");
-const { ChatRoomModel, ChatModel, ChatContentType } = require("../models/lead_model");
+const { ChatRoomModel, ChatModel, ChatContentType } = require("../tataCalling/models/lead_model");
 
 function createChatRoomModel(participantsList) {
     if (!Array.isArray(participantsList)) {

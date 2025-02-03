@@ -30,7 +30,7 @@
     "helmet": "^8.0.0",
     "http": "^0.0.1-security",
     "ioredis": "^5.4.2",
-    "moment-timezone": "^0.5.46",
+    "moment-timezone": "^0.5.47",
     "morgan": "^1.10.0",
     "os": "^0.1.2",
     "path": "^0.12.7",

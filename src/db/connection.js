@@ -16,7 +16,7 @@ class Database {
     this._retry = 0;
     this._maxRetries = 3;
     this._debugMode = process.env.DEBUG === "true";
-    this._queryLog = [];
+    this._queryLog = [];  
     this._maxQueryLogSize = 100;
     this._activeTransactions = new Set();
     this.initializePool();

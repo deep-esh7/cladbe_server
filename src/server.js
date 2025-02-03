@@ -8,12 +8,13 @@ const morgan = require("morgan");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const path = require("path");
-const { fetchAgentData } = require("./test/testCallFetch");
+// const { fetchAgentData } = require("./test/testCallFetch");
 const { DatabaseHelper } = require("./Helpers/databaseHelper");
 const { TableHelper } = require("./Helpers/leadsTableHelper");
 const leadsRoutes = require("./routes/leadsSearch.routes");
 const LocalStore = require("./LocalStore");
 const WebSocketHandler = require("./websocket/webSocketHandler.js");
+const tataCallingRoutes = require("./routes/tataCallingRoutes");
 
 // V8 optimizations
 v8.setFlagsFromString("--max-old-space-size=4096");
@@ -253,8 +254,9 @@ if (cluster.isMaster) {
 
       // API Routes
       app.use("/api/leads", leadsRoutes);
-      app.post("/api/fetchAgentData", fetchAgentData);
-      app.post("/fetchAgentData", fetchAgentData);
+      // app.post("/api/fetchAgentData", fetchAgentData);
+      // app.post("/fetchAgentData", fetchAgentData);
+      app.use("/api/tata-calling", tataCallingRoutes);
 
       // Query caching with LocalStore
       app.post("/api/sql/query", async (req, res) => {
