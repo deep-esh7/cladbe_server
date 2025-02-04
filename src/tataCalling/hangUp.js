@@ -1,4 +1,6 @@
-const CreateCallCollection = require("../tataCalling/models/callCollection");
+const {
+  CreateCallCollection,
+} = require("../tataCalling/models/callCollection");
 const TriggerCallNotifications = require("../NotificationService/triggerCallNotifications");
 
 // const ChatroomService = require("../Services/ChatroomService"); // Update path as needed
