@@ -15,6 +15,8 @@ const leadsRoutes = require("./routes/leadsSearch.routes");
 const LocalStore = require("./LocalStore");
 const WebSocketHandler = require("./websocket/webSocketHandler.js");
 const tataCallingRoutes = require("./routes/tataCallingRoutes");
+const https = require("https");
+const fs = require("fs");
 
 // V8 optimizations
 v8.setFlagsFromString("--max-old-space-size=4096");
@@ -222,6 +224,12 @@ if (cluster.isMaster) {
               connectSrc: ["'self'", "ws:", "wss:"],
             },
           },
+          hsts: {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true,
+          },
+          forceHTTPS: process.env.NODE_ENV === "production",
         })
       );
 
@@ -304,10 +312,26 @@ if (cluster.isMaster) {
 
       // Start server
       const PORT = process.env.PORT || 3000;
-      const server = app.listen(PORT, "0.0.0.0", {
-        backlog: 10000, // Increase connection queue
-      });
+      let server;
 
+      if (process.env.NODE_ENV === "production") {
+        // SSL configuration
+        const sslOptions = {
+          key: fs.readFileSync(process.env.SSL_KEY_PATH),
+          cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+          minVersion: "TLSv1.2", // Enforce minimum TLS version
+          ciphers:
+            "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384",
+        };
+
+        server = https.createServer(sslOptions, app).listen(PORT, "0.0.0.0", {
+          backlog: 10000,
+        });
+      } else {
+        server = app.listen(PORT, "0.0.0.0", {
+          backlog: 10000,
+        });
+      }
       // Optimize server settings
       server.keepAliveTimeout = 30000;
       server.headersTimeout = 31000;
@@ -323,20 +347,23 @@ if (cluster.isMaster) {
       // Update WebSocket server settings
       // In WebSocketHandler.js
       const wsOptions = {
-        maxPayload: 1024 * 1024, // Increase to 1MB
+        maxPayload: 1024 * 1024,
         perMessageDeflate: {
           zlibDeflateOptions: {
             level: 1,
             memLevel: 8,
-            chunkSize: 32 * 1024, // Increase chunk size
+            chunkSize: 32 * 1024,
           },
           zlibInflateOptions: {
             chunkSize: 32 * 1024,
           },
-          threshold: 1024 * 8, // Compress messages > 8KB
+          threshold: 1024 * 8,
         },
         clientTracking: true,
-        noServer: true, // Important for cluster
+        noServer: true,
+        // Add these SSL-related options
+        secure: process.env.NODE_ENV === "production",
+        verifyClient: process.env.NODE_ENV === "production",
       };
       wsHandler = new WebSocketHandler(server, store, wsOptions);
 
