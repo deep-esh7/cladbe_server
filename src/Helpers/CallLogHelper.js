@@ -23,94 +23,83 @@ class CallLogsHelper {
   }
 
   async addCallLogsToDb(callLogs) {
-    const cleanCallLogs = this.cleanObject(callLogs);
     try {
-      const checkQuery = `SELECT callId FROM ${TableNames.CALL_COLLECTION} WHERE callId = $1`;
-      const checkResult = await db.query(checkQuery, [cleanCallLogs.callId]);
+      const checkQuery = `SELECT "callId" FROM ${TableNames.CALL_COLLECTION} WHERE "callId" = $1`;
+      const checkResult = await db.query(checkQuery, [callLogs.callId]);
       console.log("Record check result:", checkResult.rows);
 
       if (checkResult.rows.length === 0) {
+        // Define default values for all columns
+        const defaultValues = {
+          companyID: callLogs.companyID || null,
+          cuid: callLogs.cuid || null,
+          callerDid: callLogs.callerDid || null,
+          clientNumber: callLogs.clientNumber || null,
+          incomingCallDid: callLogs.incomingCallDid || null,
+          outgoingCallDid: callLogs.outgoingCallDid || null,
+          callStartStamp: callLogs.callStartStamp || null,
+          recordingLink: callLogs.recordingLink || null,
+          agentid: callLogs.agentid || null,
+          callStatus: callLogs.callStatus || "new",
+          callTranfer: callLogs.callTranfer || false,
+          callTransferIds: callLogs.callTransferIds || [],
+          department: callLogs.department || null,
+          projects: callLogs.projects || null,
+          accessGroups: callLogs.accessGroups || [],
+          destinationID: callLogs.destinationID || null,
+          destinationName: callLogs.destinationName || null,
+          welcomeRecordingID: callLogs.welcomeRecordingID || null,
+          onHoldRecordingID: callLogs.onHoldRecordingID || null,
+          hangUpRecordingID: callLogs.hangUpRecordingID || null,
+          isNewLeadCall: callLogs.isNewLeadCall || false,
+          baseID: callLogs.baseID || null,
+          isSmsSent: callLogs.isSmsSent || false,
+          callDateTime:
+            callLogs.callDateTime || callLogs.callStartStamp || null,
+          advertisedNumber: callLogs.advertisedNumber || null,
+          callDirection: callLogs.callDirection || "inbound",
+          endStamp: callLogs.endStamp || null,
+          duration: callLogs.duration || 0,
+          source: callLogs.source || null,
+          subsource: callLogs.subsource || null,
+          stickyAgent: callLogs.stickyAgent || false,
+          fromThisTeamOnly: callLogs.fromThisTeamOnly || false,
+          ivrName: callLogs.ivrName || null,
+          ivrId: callLogs.ivrId || null,
+          incomingCallerMobileNumber:
+            callLogs.incomingCallerMobileNumber || null,
+          outgoingCallerMobileNumber:
+            callLogs.outgoingCallerMobileNumber || null,
+          incomingAgentMobileNumber: callLogs.incomingAgentMobileNumber || null,
+          outgoingAgentMobileNumber: callLogs.outgoingAgentMobileNumber || null,
+          agentName: callLogs.agentName || null,
+          agentDesignation: callLogs.agentDesignation || null,
+          callEndStamp: callLogs.callEndStamp || null,
+          callAnswerStamp: callLogs.callAnswerStamp || null,
+          hangUpCause: callLogs.hangUpCause || null,
+          leadAssigned: callLogs.leadAssigned || false,
+          currentCallStatus: callLogs.currentCallStatus || "new",
+          clientName: callLogs.clientName || null,
+          callId: callLogs.callId,
+          provider: callLogs.provider || null,
+          routing: callLogs.routing || null,
+          afterCallSmsID: callLogs.afterCallSmsID || null,
+          leadStatusType: callLogs.leadStatusType || null,
+          callNotes: callLogs.callNotes || null,
+          agentIDs: callLogs.agentIDs || [],
+        };
+
+        const columns = Object.keys(defaultValues);
+        const values = Object.values(defaultValues);
+        const placeholders = values.map((_, index) => `$${index + 1}`);
+
         const query = `
-          INSERT INTO ${TableNames.CALL_COLLECTION} (
-            companyId, cuid, callerDid, clientNumber, incomingCallDid, 
-            outgoingCallDid, callStartStamp, recordingLink, agentId, 
-            callStatus, callTransfer, callTransferIds, department, 
-            projects, accessGroups, destinationId, destinationName, 
-            welcomeRecordingId, onHoldRecordingId, hangUpRecordingId, 
-            isNewLeadCall, baseId, isSmsSent, callDateTime, 
-            advertisedNumber, callDirection, endStamp, duration, 
-            source, subsource, stickyAgent, fromThisTeamOnly, 
-            ivrName, ivrId, incomingCallerMobileNumber, 
-            outgoingCallerMobileNumber, incomingAgentMobileNumber, 
-            outgoingAgentMobileNumber, agentName, agentDesignation, 
-            callEndStamp, callAnswerStamp, hangUpCause, leadAssigned, 
-            currentCallStatus, clientName, callId, provider, routing, 
-            afterCallSmsId, leadStatusType, callNotes, agentIds
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-            $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35,
-            $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46,
-            $47, $48, $49, $50, $51, $52
-          )
+          INSERT INTO ${TableNames.CALL_COLLECTION} (${columns
+          .map((col) => (typeof col === "string" ? `"${col}"` : col))
+          .join(", ")})
+          VALUES (${placeholders.join(", ")})
           RETURNING *;
         `;
-
-        const values = [
-          cleanCallLogs.companyId,
-          cleanCallLogs.cuid,
-          cleanCallLogs.callerDid,
-          cleanCallLogs.clientNumber,
-          cleanCallLogs.incomingCallDid,
-          cleanCallLogs.outgoingCallDid,
-          cleanCallLogs.callStartStamp,
-          cleanCallLogs.recordingLink,
-          cleanCallLogs.agentId,
-          cleanCallLogs.callStatus,
-          cleanCallLogs.callTransfer,
-          cleanCallLogs.callTransferIds,
-          cleanCallLogs.department,
-          cleanCallLogs.projects,
-          cleanCallLogs.accessGroups,
-          cleanCallLogs.destinationId,
-          cleanCallLogs.destinationName,
-          cleanCallLogs.welcomeRecordingId,
-          cleanCallLogs.onHoldRecordingId,
-          cleanCallLogs.hangUpRecordingId,
-          cleanCallLogs.isNewLeadCall,
-          cleanCallLogs.baseId,
-          cleanCallLogs.isSmsSent,
-          cleanCallLogs.callDateTime,
-          cleanCallLogs.advertisedNumber,
-          cleanCallLogs.callDirection,
-          cleanCallLogs.endStamp,
-          cleanCallLogs.duration,
-          cleanCallLogs.source,
-          cleanCallLogs.subsource,
-          cleanCallLogs.stickyAgent,
-          cleanCallLogs.fromThisTeamOnly,
-          cleanCallLogs.ivrName,
-          cleanCallLogs.ivrId,
-          cleanCallLogs.incomingCallerMobileNumber,
-          cleanCallLogs.outgoingCallerMobileNumber,
-          cleanCallLogs.incomingAgentMobileNumber,
-          cleanCallLogs.outgoingAgentMobileNumber,
-          cleanCallLogs.agentName,
-          cleanCallLogs.agentDesignation,
-          cleanCallLogs.callEndStamp,
-          cleanCallLogs.callAnswerStamp,
-          cleanCallLogs.hangUpCause,
-          cleanCallLogs.leadAssigned,
-          cleanCallLogs.currentCallStatus,
-          cleanCallLogs.clientName,
-          cleanCallLogs.callId,
-          cleanCallLogs.provider,
-          cleanCallLogs.routing,
-          cleanCallLogs.afterCallSmsId,
-          cleanCallLogs.leadStatusType,
-          cleanCallLogs.callNotes,
-          cleanCallLogs.agentIds,
-        ];
 
         console.log("Insert Query:", { query, values });
         const result = await db.query(query, values);
@@ -124,46 +113,41 @@ class CallLogsHelper {
     }
   }
 
-  async updateCallLogsToDb(callLogs) {
+  async updateCallLogsToDb(callLogs, webHookType) {
     try {
       const cleanCallLogs = this.cleanObject(callLogs);
 
+      // Build dynamic SET clause based on available data
+      const updateColumns = [];
+      const values = [];
+      let paramCount = 1;
+
+      // Add each non-undefined field to the update
+      Object.entries(cleanCallLogs).forEach(([key, value]) => {
+        if (value !== undefined && key !== "callId" && key !== "companyID") {
+          updateColumns.push(`"${key}" = $${paramCount}`);
+          values.push(value);
+          paramCount++;
+        }
+      });
+
+      // Add webHookType specific updates
+      if (webHookType === "callAnsweredByAgent") {
+        updateColumns.push(`"currentCallStatus" = $${paramCount}`);
+        values.push("ongoing");
+        paramCount++;
+      }
+
+      // Add WHERE clause parameters
+      values.push(cleanCallLogs.callId);
+      values.push(cleanCallLogs.companyID);
+
       const updateQuery = `
         UPDATE ${TableNames.CALL_COLLECTION} 
-        SET 
-          callStatus = $1,
-          currentCallStatus = $2,
-          agentId = $3,
-          agentName = $4,
-          agentDesignation = $5,
-          callTransfer = $6,
-          callTransferIds = $7,
-          department = $8,
-          projects = $9,
-          accessGroups = $10,
-          destinationId = $11,
-          destinationName = $12,
-          updatedAt = CURRENT_TIMESTAMP
-        WHERE callId = $13 AND companyId = $14
+        SET ${updateColumns.join(", ")}
+        WHERE "callId" = $${paramCount} AND "companyID" = $${paramCount + 1}
         RETURNING *;
       `;
-
-      const values = [
-        cleanCallLogs.callStatus,
-        "ongoing",
-        cleanCallLogs.agentId,
-        cleanCallLogs.agentName,
-        cleanCallLogs.agentDesignation,
-        cleanCallLogs.callTransfer,
-        cleanCallLogs.callTransferIds,
-        cleanCallLogs.department,
-        cleanCallLogs.projects,
-        cleanCallLogs.accessGroups,
-        cleanCallLogs.destinationId,
-        cleanCallLogs.destinationName,
-        cleanCallLogs.callId,
-        cleanCallLogs.companyId,
-      ];
 
       const result = await db.query(updateQuery, values);
       return { success: result.rowCount > 0, data: result.rows[0] };
@@ -176,32 +160,38 @@ class CallLogsHelper {
   async completeCallLogs(callLogs) {
     try {
       const cleanCallLogs = this.cleanObject(callLogs);
+      const updateColumns = [];
+      const values = [];
+      let paramCount = 1;
+
+      // Define fields that should be updated when completing
+      const completionFields = {
+        callStatus: cleanCallLogs.callStatus,
+        currentCallStatus: "completed",
+        callEndStamp: cleanCallLogs.callEndStamp,
+        duration: cleanCallLogs.duration,
+        hangUpCause: cleanCallLogs.hangUpCause,
+        leadAssigned: cleanCallLogs.leadAssigned,
+        callNotes: cleanCallLogs.callNotes,
+      };
+
+      Object.entries(completionFields).forEach(([key, value]) => {
+        if (value !== undefined) {
+          updateColumns.push(`"${key}" = $${paramCount}`);
+          values.push(value);
+          paramCount++;
+        }
+      });
+
+      values.push(cleanCallLogs.callId);
+      values.push(cleanCallLogs.companyID);
+
       const updateQuery = `
         UPDATE ${TableNames.CALL_COLLECTION}
-        SET
-          callStatus = $1,
-          currentCallStatus = $2,
-          callEndStamp = $3,
-          duration = $4,
-          hangUpCause = $5,
-          leadAssigned = $6,
-          callNotes = $7,
-          updatedAt = CURRENT_TIMESTAMP
-        WHERE callId = $8 AND companyId = $9
+        SET ${updateColumns.join(", ")}
+        WHERE "callId" = $${paramCount} AND "companyID" = $${paramCount + 1}
         RETURNING *;
       `;
-
-      const values = [
-        cleanCallLogs.callStatus,
-        "completed",
-        cleanCallLogs.callEndStamp,
-        cleanCallLogs.duration,
-        cleanCallLogs.hangUpCause,
-        cleanCallLogs.leadAssigned,
-        cleanCallLogs.callNotes,
-        cleanCallLogs.callId,
-        cleanCallLogs.companyId,
-      ];
 
       const result = await db.query(updateQuery, values);
       return { success: result.rowCount > 0, data: result.rows[0] };
@@ -214,65 +204,3 @@ class CallLogsHelper {
 
 const callLogsHelper = new CallLogsHelper();
 module.exports = callLogsHelper;
-
-const createTableQuery = `
-CREATE TABLE IF NOT EXISTS ${TableNames.CALL_COLLECTION} (
-    id SERIAL PRIMARY KEY,
-    companyId VARCHAR(255) NOT NULL,
-    cuid VARCHAR(255),
-    callerDid VARCHAR(255),
-    clientNumber VARCHAR(255),
-    incomingCallDid VARCHAR(255),
-    outgoingCallDid VARCHAR(255),
-    callStartStamp TIMESTAMP,
-    recordingLink JSONB,
-    agentId VARCHAR(255),
-    callStatus VARCHAR(50),
-    callTransfer BOOLEAN,
-    callTransferIds TEXT[],
-    department VARCHAR(255),
-    projects JSONB,
-    accessGroups TEXT[],
-    destinationId VARCHAR(255),
-    destinationName VARCHAR(255),
-    welcomeRecordingId VARCHAR(255),
-    onHoldRecordingId VARCHAR(255),
-    hangUpRecordingId VARCHAR(255),
-    isNewLeadCall BOOLEAN,
-    baseId VARCHAR(255),
-    isSmsSent BOOLEAN,
-    callDateTime TIMESTAMP,
-    advertisedNumber VARCHAR(255),
-    callDirection VARCHAR(50),
-    endStamp TIMESTAMP,
-    duration INTEGER,
-    source VARCHAR(255),
-    subsource VARCHAR(255),
-    stickyAgent BOOLEAN,
-    fromThisTeamOnly BOOLEAN,
-    ivrName VARCHAR(255),
-    ivrId VARCHAR(255),
-    incomingCallerMobileNumber VARCHAR(255),
-    outgoingCallerMobileNumber VARCHAR(255),
-    incomingAgentMobileNumber VARCHAR(255),
-    outgoingAgentMobileNumber VARCHAR(255),
-    agentName VARCHAR(255),
-    agentDesignation VARCHAR(255),
-    callEndStamp TIMESTAMP,
-    callAnswerStamp TIMESTAMP,
-    hangUpCause VARCHAR(255),
-    leadAssigned BOOLEAN,
-    currentCallStatus VARCHAR(50),
-    clientName VARCHAR(255),
-    callId VARCHAR(255) UNIQUE NOT NULL,
-    provider VARCHAR(255),
-    routing JSONB,
-    afterCallSmsId VARCHAR(255),
-    leadStatusType VARCHAR(50),
-    callNotes TEXT,
-    agentIds TEXT[],
-    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);`;
-
-db.query(createTableQuery).catch(console.error);
