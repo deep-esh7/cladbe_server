@@ -33,6 +33,9 @@ module.exports = {
         WS_PING_TIMEOUT: 5000,
         sslCert: process.env.SSL_CERT_PATH,
         sslKey: process.env.SSL_KEY_PATH,
+        GRPC_SSL_CIPHER_SUITES: process.env.GRPC_SSL_CIPHER_SUITES,
+        GRPC_DEFAULT_SSL_ROOTS_FILE_PATH:
+          process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH,
       },
       kill_timeout: 10000,
       exp_backoff_restart_delay: 100,
@@ -62,6 +65,9 @@ module.exports = {
         PGUSER: process.env.PGUSER,
         sslCert: process.env.SSL_CERT_PATH,
         sslKey: process.env.SSL_KEY_PATH,
+        GRPC_SSL_CIPHER_SUITES: process.env.GRPC_SSL_CIPHER_SUITES,
+        GRPC_DEFAULT_SSL_ROOTS_FILE_PATH:
+          process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH,
       },
     },
   ],
