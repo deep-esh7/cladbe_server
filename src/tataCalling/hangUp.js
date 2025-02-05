@@ -1,315 +1,298 @@
+const moment = require("moment-timezone");
 const {
   CreateCallCollection,
 } = require("../tataCalling/models/callCollection");
 const TriggerCallNotifications = require("../NotificationService/triggerCallNotifications");
+const Config = require("../config");
 
-// const ChatroomService = require("../Services/ChatroomService"); // Update path as needed
-const Config = require("../../src/config");
-const moment = require("moment-timezone");
-
-// Initialize instances
+// Initialize helper instances
 const notifier = new TriggerCallNotifications();
 const companyHelper = require("../Helpers/CompanyHelper");
 const employeeHelper = require("../Helpers/EmployeeHelper");
-const tataCallingHelpers = require("../../src/tataCalling/tataCallingHelpers/TataCallingHelpers");
+const tataCallingHelpers = require("../tataCalling/tataCallingHelpers/TataCallingHelpers");
 const leadHelper = require("../Helpers/LeadHelper");
 const callLogsHelper = require("../Helpers/CallLogHelper");
+const callHandler = require("./tataCallingHelpers/CallHandler");
 
-exports.hangUp = async (req, res) => {
+async function hangUp(req, res) {
   try {
-    console.log(Config.EnvKeys.tataCalls);
-    if (req.method === "POST") {
-      console.log(JSON.stringify(req.body));
+    console.log("Config token:", Config.EnvKeys.tataCalls);
 
-      const uuid = req.body.uuid.toString();
-      var callToNumber = req.body.call_to_number.toString();
+    if (req.method !== "POST") {
+      return res.status(405).send("Error: Only POST requests are allowed");
+    }
 
-      // Convert timestamps to ISO format while maintaining Indian timezone
-      const startStamp = moment()
-        .tz("Asia/Kolkata")
-        .format("YYYY-MM-DDTHH:mm:ss.000[Z]");
-      const answerStamp = moment()
-        .tz("Asia/Kolkata")
-        .format("YYYY-MM-DDTHH:mm:ss.000[Z]");
-      const callEndStamp = moment()
-        .tz("Asia/Kolkata")
-        .format("YYYY-MM-DDTHH:mm:ss.000[Z]");
+    console.log("Hangup webhook payload:", JSON.stringify(req.body));
 
-      var agentDID;
+    // Extract call data
+    let {
+      uuid,
+      call_to_number,
+      hangup_cause,
+      direction,
+      duration,
+      answered_agent_number,
+      recording_url,
+      call_status,
+      call_id,
+      customer_no_with_prefix,
+      missed_agent,
+      caller_id_number,
+    } = req.body;
 
-      const hangUpCause = req.body.hangup_cause.toString();
-      var callDirection = req.body.direction.toString();
+    const timestamp = moment()
+      .tz("Asia/Kolkata")
+      .format("YYYY-MM-DDTHH:mm:ss.000[Z]");
 
-      const duration = req.body.duration.toString();
-      var answeredAgentNo = req.body.answered_agent_number.toString();
+    // Format phone numbers using CallHandler
+    let callToNumber =
+      callHandler.formatIndianNumberWithoutPlus(call_to_number);
+    let callerNumber = callHandler.formatIndianNumberWithPlus(
+      customer_no_with_prefix
+    );
+    let answeredAgentNo = callHandler.formatAgentNumber(
+      answered_agent_number,
+      call_status,
+      direction,
+      missed_agent
+    );
 
-      const recordingLink = req.body.recording_url.toString();
+    // Handle call direction
+    let callDirection = direction;
+    if (direction === "clicktocall") {
+      callDirection = "outbound";
+      callToNumber =
+        callHandler.formatIndianNumberWithoutPlus(caller_id_number);
+    }
 
-      const callStatus = req.body.call_status.toString();
+    // Get company details
+    const { companyId, provider } = await companyHelper.getCompanyIdAndProvider(
+      callToNumber
+    );
+    console.log("Company details:", { companyId, provider });
 
-      // Handling Indian phone numbers
-      if (callToNumber.length > 10) {
-        const last10Digits = callToNumber.slice(-10);
-        callToNumber = "91" + last10Digits;
-      } else if (callToNumber.length === 10) {
-        callToNumber = "91" + callToNumber;
-      }
+    // Get lead details
+    const leadDetails = await leadHelper.checkLeadExist(
+      companyId,
+      callerNumber
+    );
+    console.log("Lead details:", leadDetails);
 
-      const callID = tataCallingHelpers.convertCallId(
-        req.body.call_id.toString()
-      );
-      var callerNumber = req.body["customer_no_with_prefix "].toString();
+    // Get destination details
+    let destinationDetails = null;
+    let employeeDetails = null;
 
-      // Handling Indian caller numbers
-      if (callerNumber.length > 10) {
-        const last10Digits = callerNumber.slice(-10);
-        callerNumber = "+91" + last10Digits;
-      } else if (callerNumber.length === 10) {
-        callerNumber = "+91" + callerNumber;
-      }
-
-      console.log(
-        "call status given by tata on hangup : " +
-          req.body.call_status.toString()
-      );
-
-      if (callStatus == "missed" && callDirection != "clicktocall") {
-        // First check if missed_agent exists and is an array with at least one element
-        if (
-          req.body.missed_agent &&
-          Array.isArray(req.body.missed_agent) &&
-          req.body.missed_agent.length > 0 &&
-          req.body.missed_agent[0].number
-        ) {
-          const agentNumber = req.body.missed_agent[0].number.toString();
-
-          if (agentNumber.length === 1) {
-            answeredAgentNo = "+91" + agentNumber.substring(1);
-          } else if (agentNumber.length === 13) {
-            answeredAgentNo = "+91" + agentNumber.substring(3);
-          }
-        } else {
-          answeredAgentNo = "";
-        }
-      } else {
-        if (answeredAgentNo.toString().length > 10) {
-          const last10Digits = answeredAgentNo.slice(-10);
-          answeredAgentNo = "+91" + last10Digits;
-        } else if (answeredAgentNo.length === 10) {
-          answeredAgentNo = "+91" + answeredAgentNo;
-        }
-      }
-
-      // Adjust callToNumber for clicktocall direction
-      if (callDirection === "clicktocall") {
-        callDirection = "outbound";
-        callToNumber = "91" + req.body.caller_id_number.toString();
-        if (callToNumber.toString().length == 10) {
-          callToNumber = "91" + req.body.caller_id_number.toString();
-        } else if (callToNumber.toString().length > 10) {
-          const last10Digits = callToNumber.slice(-10);
-          callToNumber = "91" + last10Digits;
-        } else {
-          callDirection = "inbound";
-        }
-      }
-
-      console.log(answeredAgentNo);
-
-      // Fetch companyId and provider using CompanyHelper
-      const { companyId, provider } =
-        await companyHelper.getCompanyIdAndProvider(callToNumber);
-
-      const callData = new CreateCallCollection({
-        companyID: companyId,
-        callDirection: callDirection,
-        callId: callID,
-        callStatus: callStatus,
-        callStartStamp: startStamp,
-        callEndStamp: callEndStamp,
-        currentCallStatus: "Ended",
-        hangUpCause: hangUpCause,
-        duration: duration,
-        recordingLink: tataCallingHelpers.getAppDocument(
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          ""
-        ),
-      });
-
-      const leadDetails = await leadHelper.checkLeadExist(
+    if (callDirection !== "outbound") {
+      // Get destination details
+      destinationDetails = await tataCallingHelpers.fetchDestinationID(
         companyId,
-        callerNumber
+        callToNumber
       );
+      console.log("Destination details:", destinationDetails);
 
-      console.log(leadDetails);
-
-      if (callDirection != "outbound") {
-        const employeeDetails = await employeeHelper.fetchEmployeeDataByNumber(
+      // Get employee details if agent number exists
+      if (answeredAgentNo) {
+        employeeDetails = await employeeHelper.fetchEmployeeDataByNumber(
           companyId,
           answeredAgentNo
         );
+        console.log("Employee details:", employeeDetails);
+      }
 
-        if (employeeDetails === "Employee Not Found") {
-          console.log("Employee not found for number:", answeredAgentNo);
-          res.status(404).send("Employee not found");
-          return;
-        }
-
-        const agentID = employeeDetails.id;
-        const agentName = employeeDetails.name;
-        const agentDesignation = employeeDetails.designation;
-
-        console.log(JSON.stringify(leadDetails));
-
-        const leadID = leadDetails.baseid;
-        const leadState = leadDetails.leadState;
-        const coOwnerList = leadDetails.coOwners;
-
-        // Fetch destinationID
-        const destinationID = await tataCallingHelpers.fetchDestinationID(
+      // Get destination conditions
+      if (destinationDetails) {
+        const conditions = await tataCallingHelpers.fetchConditions(
           companyId,
-          callToNumber
-        );
-
-        // Fetch destinationData
-        const destinationData = await tataCallingHelpers.fetchConditions(
-          companyId,
-          destinationID["destinationName"],
-          destinationID["destinationID"],
+          destinationDetails.destinationName,
+          destinationDetails.destinationID,
           true
         );
 
-        if (leadDetails.ownerId == "") {
-          await leadHelper.updateLeadData(
-            companyId,
-            agentID,
-            agentName,
-            agentDesignation,
-            leadID
-          );
-        } else if (leadState == "inactive") {
-          console.log("yaha phchaa 2");
-          leadHelper.updateLeadState(companyId, leadID);
-          leadHelper.updateLeadData(
-            companyId,
-            agentID,
-            agentName,
-            agentDesignation,
-            leadID,
-            false
-          );
-        } else if (
-          leadDetails.ownerId != "" &&
-          destinationData.routing == "Round Robin (Simultaneous)" &&
-          (leadDetails.coOwners == "" || leadDetails.coOwners == [])
+        // Handle lead updates
+        if (
+          employeeDetails !== "Employee Not Found" &&
+          leadDetails !== "Lead Not Exist"
         ) {
-          await leadHelper.updateLeadData(
+          await handleLeadUpdates(
             companyId,
-            agentID,
-            agentName,
-            agentDesignation,
-            leadID,
-            false
+            employeeDetails,
+            leadDetails,
+            conditions
           );
-        } else if (
-          leadDetails.ownerId != "" &&
-          leadDetails.ownerId != agentID
-        ) {
-          console.log(
-            leadDetails.ownerId +
-              " owner id, routing : " +
-              destinationData.routing +
-              " coownerlist : " +
-              leadDetails.coOwners
-          );
-
-          const coOwnerDetails = {
-            id: agentID,
-            designation: agentDesignation,
-            name: agentName,
-          };
-
-          console.log("yaha phchaa 1 aur lead state hai " + coOwnerList);
-
-          if (coOwnerList.some((coOwner) => coOwner.id === agentID) == false) {
-            leadHelper.addOwnerAndCoOwner(coOwnerDetails, companyId, leadID);
-          }
         }
-
-        /* 
-       // Commented Chatroom Service code
-       await ChatroomService.addMessageToChatRoom(
-         leadDetails.baseid,
-         companyId,
-         "Incoming Call Ended"
-       );
-       */
-
-        // Send notification to first agent using new notifier
-        await notifier.triggerNotification(
-          {
-            notificationType: "inboundCall",
-            triggerType: "hangUp",
-            projectName: "projectName",
-            clientName: leadDetails.name,
-            clientNumber: leadDetails.mobileNo,
-            leadStatus: leadDetails.leadStatus,
-            leadSubStatus: leadDetails.leadSubStatus,
-            companyId: companyId,
-            baseId: leadDetails.baseid,
-          },
-          companyId,
-          leadDetails.ownerId
-        );
-
-        await callLogsHelper.updateCallLogsToDb(
-          callData,
-          "hangUp",
-          recordingLink
-        );
-      } else {
-        // Send notification for hangup to outbound call using new notifier
-        await notifier.triggerNotification(
-          {
-            notificationType: "outboundCall",
-            triggerType: "hangUp",
-            projectName: "projectName",
-            clientName: leadDetails.name,
-            clientNumber: leadDetails.mobileNo,
-            leadStatus: leadDetails.leadStatus,
-            leadSubStatus: leadDetails.leadSubStatus,
-            companyId: companyId,
-            baseId: leadDetails.baseid,
-          },
-          companyId,
-          leadDetails.ownerId
-        );
-
-        await updateCallLogsToDb(callData, "hangUp", recordingLink);
-
-        /* 
-       // Commented Chatroom Service code
-       await ChatroomService.addMessageToChatRoom(
-         leadDetails.baseid,
-         companyId,
-         "Outgoing Call Ended"
-       );
-       */
       }
-
-      res.status(200).send("Call logs updated successfully.");
-    } else {
-      res
-        .status(405)
-        .send("Error: Only POST requests are allowed at this endpoint");
     }
+
+    // Create call collection
+    const callCollection = new CreateCallCollection({
+      companyID: companyId,
+      cuid: uuid,
+      callDirection: callDirection,
+      provider: provider,
+      callId: tataCallingHelpers.convertCallId(call_id),
+      callStatus: call_status,
+      callStartStamp: timestamp,
+      callEndStamp: timestamp,
+      currentCallStatus: "Ended",
+      hangUpCause: hangup_cause,
+      duration: duration,
+      recordingLink: tataCallingHelpers.getAppDocument(
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ),
+      // callerDid: call_to_number,
+      clientNumber: callerNumber,
+      incomingAgentMobileNumber: answeredAgentNo,
+      agentid: employeeDetails?.id,
+      agentName: employeeDetails?.name,
+      agentDesignation: employeeDetails?.designation,
+      baseID: leadDetails?.baseid,
+      leadStatusType: leadDetails?.leadStatusType,
+      destinationID: destinationDetails?.destinationID,
+      destinationName: destinationDetails?.destinationName,
+    });
+
+    // Send notifications
+    if (leadDetails !== "Lead Not Exist") {
+      await sendNotifications(callDirection, companyId, leadDetails, notifier);
+    }
+
+    // Update call logs
+    await callLogsHelper.updateCallLogsToDbWithRecording(
+      callCollection,
+      "hangUp",
+      recording_url
+    );
+
+    res.status(200).send("Call logs updated successfully.");
   } catch (error) {
     console.error("Error in hangUp function:", error);
-    res.status(500).send("Internal server error");
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+      error: error.stack,
+    });
   }
+}
+
+async function handleLeadUpdates(
+  companyId,
+  employeeDetails,
+  leadDetails,
+  conditions
+) {
+  // Handle unassigned lead
+  if (!leadDetails.ownerId) {
+    await leadHelper.updateLeadData(
+      companyId,
+      employeeDetails.id,
+      employeeDetails.name,
+      employeeDetails.designation,
+      leadDetails.baseid,
+      conditions?.stickyAgent || false
+    );
+  }
+  // Handle inactive lead
+  else if (leadDetails.leadState === "inactive") {
+    await leadHelper.updateLeadState(companyId, leadDetails.baseid);
+    await leadHelper.updateLeadData(
+      companyId,
+      employeeDetails.id,
+      employeeDetails.name,
+      employeeDetails.designation,
+      leadDetails.baseid,
+      false
+    );
+  }
+  // Handle simultaneous routing
+  else if (
+    leadDetails.ownerId &&
+    conditions?.routing === "Round Robin (Simultaneous)" &&
+    (!leadDetails.coOwners || leadDetails.coOwners.length === 0)
+  ) {
+    await leadHelper.updateLeadData(
+      companyId,
+      employeeDetails.id,
+      employeeDetails.name,
+      employeeDetails.designation,
+      leadDetails.baseid,
+      false
+    );
+  }
+  // Handle co-owner assignment
+  else if (leadDetails.ownerId !== employeeDetails.id) {
+    const coOwnerDetails = {
+      id: employeeDetails.id,
+      designation: employeeDetails.designation,
+      name: employeeDetails.name,
+    };
+
+    if (
+      !leadDetails.coOwners?.some(
+        (coOwner) => coOwner.id === employeeDetails.id
+      )
+    ) {
+      await leadHelper.addOwnerAndCoOwner(
+        coOwnerDetails,
+        companyId,
+        leadDetails.baseid
+      );
+    }
+  }
+}
+
+async function sendNotifications(
+  callDirection,
+  companyId,
+  leadDetails,
+  notifier
+) {
+  // First check if leadDetails exists and is not "Lead Not Exist"
+  if (!leadDetails || leadDetails === "Lead Not Exist") {
+    console.log("No lead details available for notification");
+    return;
+  }
+
+  try {
+    const notificationData = {
+      notificationType:
+        callDirection === "outbound" ? "outboundCall" : "inboundCall",
+      triggerType: "hangUp",
+      projectName:
+        leadDetails.projectData && leadDetails.projectData[0]
+          ? leadDetails.projectData[0].name
+          : "",
+      clientName: leadDetails.name || "",
+      clientNumber: leadDetails.mobileNo || "",
+      leadStatus: leadDetails.leadStatus || "",
+      leadSubStatus: leadDetails.leadSubStatus || "",
+      companyId: companyId,
+      baseId: leadDetails.baseid || "",
+    };
+
+    // Only send notification if we have an ownerId
+    if (leadDetails.ownerId) {
+      await notifier.triggerNotification(
+        notificationData,
+        companyId,
+        leadDetails.ownerId
+      );
+    } else {
+      console.log("No owner ID found for notification");
+    }
+  } catch (error) {
+    console.error("Error sending notification:", error);
+    // Don't throw error to prevent call log update failure
+  }
+}
+
+module.exports = {
+  hangUp,
+  handleLeadUpdates,
+  sendNotifications,
 };
